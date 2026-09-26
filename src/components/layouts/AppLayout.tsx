@@ -92,8 +92,9 @@ const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{profile?.full_name ?? 'User'}</p>
-            <p className="text-xs text-sidebar-foreground/50 capitalize">{role === 'finance' ? 'Finance' : role.replace('_', ' ')}</p>
+            <p className="text-sm font-medium text-sidebar-foreground truncate">
+              {({ admin: 'Administrator', hr_admin: 'HR User', manager: 'Manager', finance: 'Finance', staff: 'Staff' } as const)[role] ?? 'Staff'}
+            </p>
           </div>
         </div>
         <Button
