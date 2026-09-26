@@ -16,6 +16,28 @@ import LeaveConfigPage from './pages/leave/LeaveConfigPage';
 import UserManagementPage from './pages/UserManagementPage';
 import ForbiddenPage from './pages/ForbiddenPage';
 
+import type { Permission, Profile } from '@/types/types';
+
+export function hasRoutePermission(route: RouteConfig, profile: Profile | null): boolean {
+  if (!profile) return false;
+  if (profile.role === 'admin') return true;
+  if (route.roles && !route.roles.includes(profile.role)) return false;
+  if (route.permission) return (profile.permissions ?? []).includes(route.permission);
+  return true;
+}
+
+// First page a user may actually open (fallback when /dashboard is not granted)
+const LANDING_PRIORITY: string[] = ['/dashboard', '/salary-slips', '/salary-history', '/salary/new', '/employees', '/leave-requests', '/my-leaves', '/users', '/change-password'];
+
+export function getFirstPermittedPath(profile: Profile | null): string {
+  if (!profile) return '/403';
+  for (const path of LANDING_PRIORITY) {
+    const route = routes.find(r => r.path === path);
+    if (route && hasRoutePermission(route, profile)) return path;
+  }
+  return '/change-password';
+}
+
 export interface RouteConfig {
   name: string;
   path: string;
@@ -23,33 +45,35 @@ export interface RouteConfig {
   visible?: boolean;
   public?: boolean;
   roles?: string[];
+  /** Required module permission — users without it are redirected to /403 */
+  permission?: Permission;
 }
 
 export const routes: RouteConfig[] = [
   { name: 'Login', path: '/login', element: <LoginPage />, public: true },
-  { name: 'Access Denied', path: '/403', element: <ForbiddenPage />, visible: false, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
-  { name: 'Change Password', path: '/change-password', element: <ChangePasswordPage />, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
-  { name: 'Dashboard', path: '/dashboard', element: <DashboardPage />, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
+  { name: 'Access Denied', path: '/403', element: <ForbiddenPage />, visible: false },
+  { name: 'Change Password', path: '/change-password', element: <ChangePasswordPage /> },
+  { name: 'Dashboard', path: '/dashboard', element: <DashboardPage />, permission: 'dashboard' },
 
   // Employee management
-  { name: 'Employees', path: '/employees', element: <EmployeeListPage />, roles: ['admin', 'hr_admin', 'manager'] },
-  { name: 'Add Employee', path: '/employees/new', element: <EmployeeFormPage />, roles: ['admin', 'hr_admin'] },
-  { name: 'Edit Employee', path: '/employees/:id/edit', element: <EmployeeFormPage />, roles: ['admin', 'hr_admin'] },
-  { name: 'Employee Detail', path: '/employees/:id', element: <EmployeeDetailPage />, roles: ['admin', 'hr_admin', 'manager'] },
+  { name: 'Employees', path: '/employees', element: <EmployeeListPage />, permission: 'employees' },
+  { name: 'Add Employee', path: '/employees/new', element: <EmployeeFormPage />, permission: 'employees', roles: ['admin', 'hr_admin'] },
+  { name: 'Edit Employee', path: '/employees/:id/edit', element: <EmployeeFormPage />, permission: 'employees', roles: ['admin', 'hr_admin'] },
+  { name: 'Employee Detail', path: '/employees/:id', element: <EmployeeDetailPage />, permission: 'employees' },
 
   // Salary management
-  { name: 'Add Salary', path: '/salary/new', element: <SalaryFormPage />, roles: ['admin', 'hr_admin'] },
-  { name: 'Edit Salary', path: '/salary/:id/edit', element: <SalaryFormPage />, roles: ['admin', 'hr_admin'] },
-  { name: 'Salary Slip', path: '/salary/:id/slip', element: <SalarySlipPage />, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
-  { name: 'Salary Slips', path: '/salary-slips', element: <SalarySlipsPage />, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
-  { name: 'Salary History', path: '/salary-history', element: <SalaryHistoryPage />, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
+  { name: 'Add Salary', path: '/salary/new', element: <SalaryFormPage />, permission: 'salary_management', roles: ['admin', 'hr_admin', 'finance'] },
+  { name: 'Edit Salary', path: '/salary/:id/edit', element: <SalaryFormPage />, permission: 'salary_management', roles: ['admin', 'hr_admin', 'finance'] },
+  { name: 'Salary Slip', path: '/salary/:id/slip', element: <SalarySlipPage />, permission: 'salary_slips' },
+  { name: 'Salary Slips', path: '/salary-slips', element: <SalarySlipsPage />, permission: 'salary_slips' },
+  { name: 'Salary History', path: '/salary-history', element: <SalaryHistoryPage />, permission: 'salary_management' },
 
   // Leave management
-  { name: 'My Leaves', path: '/my-leaves', element: <MyLeavesPage />, roles: ['staff'] },
-  { name: 'Apply Leave', path: '/my-leaves/apply', element: <ApplyLeavePage />, roles: ['staff'] },
-  { name: 'Leave Requests', path: '/leave-requests', element: <LeaveRequestsPage />, roles: ['admin', 'hr_admin', 'manager'] },
+  { name: 'My Leaves', path: '/my-leaves', element: <MyLeavesPage />, permission: 'leaves' },
+  { name: 'Apply Leave', path: '/my-leaves/apply', element: <ApplyLeavePage />, permission: 'leaves' },
+  { name: 'Leave Requests', path: '/leave-requests', element: <LeaveRequestsPage />, permission: 'leaves', roles: ['admin', 'hr_admin', 'manager'] },
   { name: 'Leave Config', path: '/leave-config', element: <LeaveConfigPage />, roles: ['admin'] },
 
   // User management
-  { name: 'Users', path: '/users', element: <UserManagementPage />, roles: ['admin'] },
+  { name: 'Users', path: '/users', element: <UserManagementPage />, permission: 'user_management' },
 ];

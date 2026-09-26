@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getEmployees, createSalaryRecord, updateSalaryRecord, getSalaryRecord, getLeaveRequests } from '@/db/api';
+import { getEmployeeDirectory, createSalaryRecord, updateSalaryRecord, getSalaryRecord, getLeaveRequests } from '@/db/api';
+import type { EmployeeDirectoryEntry } from '@/db/api';
 import { calculateSalary, formatLKR, STAMP_DUTY_AMOUNT } from '@/lib/salaryCalc';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Employee, LeaveRequest, SalaryRecord } from '@/types/types';
+import type { LeaveRequest, SalaryRecord } from '@/types/types';
 import { toast } from 'sonner';
 import { ArrowLeft, Calculator, Wand2, Plus, Trash2 } from 'lucide-react';
 
@@ -86,7 +87,7 @@ const SalaryFormPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { profile } = useAuth();
   const [form, setForm] = useState<FormState>({ ...EMPTY, employee_id: searchParams.get('employeeId') ?? '' });
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeDirectoryEntry[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -96,7 +97,7 @@ const SalaryFormPage: React.FC = () => {
     (async () => {
       setLoading(true);
       const [emps, rec] = await Promise.all([
-        getEmployees(),
+        getEmployeeDirectory(),
         isEdit ? getSalaryRecord(id!) : Promise.resolve(null),
       ]);
       setEmployees(emps);

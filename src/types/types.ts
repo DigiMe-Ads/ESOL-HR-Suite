@@ -1,4 +1,33 @@
-export type UserRole = 'admin' | 'hr_admin' | 'manager' | 'staff';
+export type UserRole = 'admin' | 'hr_admin' | 'manager' | 'staff' | 'finance';
+
+// Granular module-level access permissions
+export type Permission =
+  | 'dashboard'
+  | 'employees'
+  | 'leaves'
+  | 'salary_management'
+  | 'salary_slips'
+  | 'user_management';
+
+export const PERMISSION_MODULES: Array<{ key: Permission; label: string; description: string }> = [
+  { key: 'dashboard', label: 'Dashboard', description: 'Overview dashboard with company statistics' },
+  { key: 'employees', label: 'Employee Management', description: 'Employee list, profiles, and records' },
+  { key: 'leaves', label: 'Leave Management', description: 'Leave requests, approvals, and balances' },
+  { key: 'salary_management', label: 'Salary Management', description: 'Create, edit, and view salary entries' },
+  { key: 'salary_slips', label: 'Salary Slips', description: 'Generate, view, and download salary slips' },
+  { key: 'user_management', label: 'User Management', description: 'User accounts, roles, and access control' },
+];
+
+export const ALL_PERMISSIONS: Permission[] = PERMISSION_MODULES.map(m => m.key);
+
+// Default module presets applied when a base role is selected
+export const ROLE_PERMISSION_PRESETS: Record<UserRole, Permission[]> = {
+  admin: [...ALL_PERMISSIONS],
+  hr_admin: ['dashboard', 'employees', 'leaves', 'salary_management', 'salary_slips'],
+  manager: ['dashboard', 'leaves'],
+  finance: ['salary_management', 'salary_slips'],
+  staff: ['dashboard', 'leaves', 'salary_slips'],
+};
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 export type LeaveType = 'annual' | 'sick' | 'casual' | 'maternity' | 'paternity' | 'other';
 export type EmploymentStatus = 'active' | 'resigned';
@@ -11,6 +40,7 @@ export interface Profile {
   last_name: string | null;
   phone: string | null;
   role: UserRole;
+  permissions: Permission[];
   avatar_url: string | null;
   must_change_password: boolean;
   created_at: string;

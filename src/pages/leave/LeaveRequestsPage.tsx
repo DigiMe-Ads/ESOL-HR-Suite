@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getLeaveRequests, getEmployees, reviewLeaveRequest } from '@/db/api';
+import { getLeaveRequests, getEmployeeDirectory, reviewLeaveRequest } from '@/db/api';
+import type { EmployeeDirectoryEntry } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { LeaveRequest, Employee } from '@/types/types';
 import { toast } from 'sonner';
@@ -22,7 +23,7 @@ const statusColor: Record<string, string> = {
 const LeaveRequestsPage: React.FC = () => {
   const { profile } = useAuth();
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeDirectoryEntry[]>([]);
   const [filterStatus, setFilterStatus] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [reviewDialog, setReviewDialog] = useState<{ leave: LeaveRequest; action: 'approved' | 'rejected' } | null>(null);
@@ -31,7 +32,7 @@ const LeaveRequestsPage: React.FC = () => {
 
   const load = async () => {
     setLoading(true);
-    const [lvs, emps] = await Promise.all([getLeaveRequests(), getEmployees()]);
+    const [lvs, emps] = await Promise.all([getLeaveRequests(), getEmployeeDirectory()]);
     setLeaves(lvs);
     setEmployees(emps);
     setLoading(false);

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppLayout from '@/components/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
-import { getSalaryRecord, getEmployee } from '@/db/api';
+import { getSalaryRecord, getEmployeeForSlip } from '@/db/api';
 import type { SalaryRecord, Employee } from '@/types/types';
 import { formatLKR, round2 } from '@/lib/salaryCalc';
 import { generateSlipPdf } from '@/lib/slipPdf';
@@ -119,7 +119,7 @@ const SalarySlipPage: React.FC = () => {
       if (!id) return;
       const rec = await getSalaryRecord(id);
       if (!rec) { setLoading(false); return; }
-      const emp = await getEmployee(rec.employee_id);
+      const emp = await getEmployeeForSlip(rec.employee_id);
       setRecord(rec);
       setEmployee(emp);
       setLoading(false);

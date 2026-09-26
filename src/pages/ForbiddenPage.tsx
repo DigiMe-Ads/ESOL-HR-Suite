@@ -1,11 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/layouts/AppLayout';
+import { getFirstPermittedPath } from '@/routes';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { ShieldAlert } from 'lucide-react';
 
 const ForbiddenPage: React.FC = () => {
   const navigate = useNavigate();
+  const { profile } = useAuth();
   return (
     <AppLayout>
       <div className="p-6 md:p-8 flex items-center justify-center min-h-[60vh]">
@@ -17,7 +20,7 @@ const ForbiddenPage: React.FC = () => {
           <p className="text-sm text-muted-foreground mt-2 text-pretty">
             You do not have permission to view this page. If you believe this is a mistake, contact your administrator.
           </p>
-          <Button className="mt-6" onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
+          <Button className="mt-6" onClick={() => navigate(getFirstPermittedPath(profile))}>Back to My Home Page</Button>
         </div>
       </div>
     </AppLayout>

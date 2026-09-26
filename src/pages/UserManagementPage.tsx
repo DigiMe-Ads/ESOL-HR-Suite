@@ -4,20 +4,26 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getAllProfiles, updateUserRole, createUserAccount, resetUserPassword, getEmployees, updateEmployee } from '@/db/api';
-import type { Profile, UserRole, Employee } from '@/types/types';
+import { getAllProfiles, createUserAccount, resetUserPassword, getEmployees, updateEmployee, updateUserPermissions } from '@/db/api';
+import type { Profile, UserRole, Employee, Permission } from '@/types/types';
+import { PERMISSION_MODULES, ALL_PERMISSIONS, ROLE_PERMISSION_PRESETS } from '@/types/types';
 import { toast } from 'sonner';
-import { UserPlus, KeyRound, Copy, Check, Mail, ExternalLink, CheckCircle2, UserCheck, AlertCircle } from 'lucide-react';
+import { UserPlus, KeyRound, Copy, Check, Mail, ExternalLink, CheckCircle2, UserCheck, ShieldCheck, Lock } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: 'finance', label: 'Finance' },
   { value: 'staff', label: 'Staff' },
   { value: 'manager', label: 'Manager' },
   { value: 'hr_admin', label: 'HR User' },
 ];
+
+const roleLabel = (r: UserRole) => ROLE_OPTIONS.find(o => o.value === r)?.label ?? (r === 'admin' ? 'Administrator' : r);
 
 interface CreateFormState {
   employee_id: string; // ID of selected employee or 'manual'
@@ -26,6 +32,7 @@ interface CreateFormState {
   email: string;
   phone: string;
   role: UserRole;
+  permissions: Permission[];
 }
 
 const EMPTY_CREATE: CreateFormState = {
@@ -35,6 +42,7 @@ const EMPTY_CREATE: CreateFormState = {
   email: '',
   phone: '',
   role: 'staff',
+  permissions: [...ROLE_PERMISSION_PRESETS.staff],
 };
 
 interface TempCredsState {
@@ -57,18 +65,24 @@ const UserManagementPage: React.FC = () => {
   const [copiedPwd, setCopiedPwd] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
 
+  // Edit-permissions dialog state
+  const [editTarget, setEditTarget] = useState<Profile | null>(null);
+  const [editRole, setEditRole] = useState<UserRole>('staff');
+  const [editPerms, setEditPerms] = useState<Permission[]>([]);
+  const [savingPerms, setSavingPerms] = useState(false);
+
   const load = async () => {
     setLoading(true);
-    const [pList, eList] = await Promise.all([
-      getAllProfiles(),
-      getEmployees(),
-    ]);
+    const [pList, eList] = await Promise.all([getAllProfiles(), getEmployees()]);
     setProfiles(pList);
     setEmployees(eList);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
+  const togglePerm = (list: Permission[], perm: Permission): Permission[] =>
+    list.includes(perm) ? list.filter(p => p !== perm) : [...list, perm];
 
   // When an employee is chosen in the Create User dialog, auto-fill their email, name, and phone
   const handleEmployeeSelect = (empId: string) => {
@@ -97,23 +111,22 @@ const UserManagementPage: React.FC = () => {
     }));
   };
 
-  const handleRoleChange = async (userId: string, newRole: UserRole) => {
-    await updateUserRole(userId, newRole);
-    toast.success('Role updated');
-    load();
+  // Selecting a role pre-checks that role's default modules (still fully editable)
+  const handleRolePreset = (role: UserRole) => {
+    setCreateForm(f => ({ ...f, role, permissions: [...ROLE_PERMISSION_PRESETS[role]] }));
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { first_name, last_name, email, phone, role, employee_id } = createForm;
+    const { first_name, last_name, email, phone, role, permissions, employee_id } = createForm;
     if (!first_name.trim() || !last_name.trim()) {
       toast.error('First name and last name are required'); return;
     }
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       toast.error('A valid email address is required (it serves as the username)'); return;
     }
-    if (phone && !/^[+\d][\d\s-]{6,19}$/.test(phone.trim())) {
-      toast.error('Please enter a valid phone number'); return;
+    if (permissions.length === 0) {
+      toast.error('Select at least one module for this user to access'); return;
     }
 
     setCreating(true);
@@ -123,6 +136,7 @@ const UserManagementPage: React.FC = () => {
       email: email.trim().toLowerCase(),
       phone: phone.trim() || undefined,
       role,
+      permissions,
     });
     setCreating(false);
 
@@ -140,18 +154,45 @@ const UserManagementPage: React.FC = () => {
       });
     }
 
-    const portalUrl = `${window.location.origin}/login`;
     setTempCreds({
       name: `${first_name.trim()} ${last_name.trim()}`,
       email: email.trim().toLowerCase(),
       password: res.data.temp_password,
-      portal_url: portalUrl,
+      portal_url: `${window.location.origin}/login`,
       is_reset: false,
     });
 
     setShowCreate(false);
     setCreateForm({ ...EMPTY_CREATE });
     toast.success('User account created successfully');
+    load();
+  };
+
+  const openEditPermissions = (p: Profile) => {
+    setEditTarget(p);
+    setEditRole(p.role);
+    // Admins implicitly hold all modules; show them fully ticked
+    setEditPerms(p.role === 'admin' ? [...ALL_PERMISSIONS] : (p.permissions ?? []));
+  };
+
+  const handleSavePermissions = async () => {
+    if (!editTarget) return;
+    if (editPerms.length === 0) {
+      toast.error('Select at least one module for this user to access'); return;
+    }
+    setSavingPerms(true);
+    const res = await updateUserPermissions({
+      user_id: editTarget.id,
+      permissions: editPerms,
+      role: editTarget.role === 'admin' ? undefined : editRole,
+    });
+    setSavingPerms(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success('Access permissions updated');
+    setEditTarget(null);
     load();
   };
 
@@ -162,12 +203,11 @@ const UserManagementPage: React.FC = () => {
     if (res.error || !res.data) {
       toast.error(res.error ?? 'Failed to reset password'); return;
     }
-    const portalUrl = `${window.location.origin}/login`;
     setTempCreds({
       name: p.full_name || 'Employee',
       email: p.email ?? '',
       password: res.data.temp_password,
-      portal_url: portalUrl,
+      portal_url: `${window.location.origin}/login`,
       is_reset: true,
     });
     load();
@@ -185,7 +225,6 @@ const UserManagementPage: React.FC = () => {
     }
   };
 
-  // Build the complete invitation email text
   const getEmailContent = () => {
     if (!tempCreds) return { subject: '', body: '' };
     const subject = tempCreds.is_reset
@@ -206,7 +245,6 @@ If you have any questions, please contact the HR Department.
 Best regards,
 ESOL Premier Campus HR & Administration
 No 179, High Level Road, Pannipitiya`;
-
     return { subject, body };
   };
 
@@ -222,18 +260,39 @@ No 179, High Level Road, Pannipitiya`;
     }
   };
 
-  // Open the employee's email in default mail client
   const openMailClient = () => {
     if (!tempCreds) return;
     const { subject, body } = getEmailContent();
-    const mailto = `mailto:${encodeURIComponent(tempCreds.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
+    window.location.href = `mailto:${encodeURIComponent(tempCreds.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
-  // Map profile id to linked employee if any
-  const getLinkedEmployee = (profileId: string) => {
-    return employees.find(e => e.profile_id === profileId);
-  };
+  const getLinkedEmployee = (profileId: string) => employees.find(e => e.profile_id === profileId);
+
+  const PermCheckList: React.FC<{
+    perms: Permission[];
+    onChange: (p: Permission[]) => void;
+    locked?: boolean;
+  }> = ({ perms, onChange, locked }) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {PERMISSION_MODULES.map(mod => (
+        <label
+          key={mod.key}
+          className={`flex items-start gap-2.5 rounded-lg border p-3 transition-colors ${perms.includes(mod.key) ? 'border-primary/40 bg-primary/5' : 'border-border bg-card'} ${locked ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:border-primary/30'}`}
+        >
+          <Checkbox
+            checked={perms.includes(mod.key)}
+            disabled={locked}
+            onCheckedChange={() => !locked && onChange(togglePerm(perms, mod.key))}
+            className="mt-0.5"
+          />
+          <div className="min-w-0">
+            <span className="text-sm font-medium text-foreground block">{mod.label}</span>
+            <span className="text-xs text-muted-foreground block mt-0.5">{mod.description}</span>
+          </div>
+        </label>
+      ))}
+    </div>
+  );
 
   return (
     <AppLayout>
@@ -242,7 +301,7 @@ No 179, High Level Road, Pannipitiya`;
           <div>
             <h1 className="text-xl md:text-2xl font-semibold text-foreground">User Management</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Create accounts for registered employees, manage roles, and issue login credentials
+              Create accounts, tick the module access for each user, and issue login credentials
             </p>
           </div>
           <Button onClick={() => setShowCreate(true)} className="shrink-0">
@@ -258,9 +317,8 @@ No 179, High Level Road, Pannipitiya`;
                   <tr className="border-b border-border bg-muted/40">
                     <th className="text-left px-6 py-3 font-semibold text-foreground">Name</th>
                     <th className="text-left px-6 py-3 font-semibold text-foreground">Email (Username)</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Linked Employee</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Phone</th>
                     <th className="text-left px-6 py-3 font-semibold text-foreground">Role</th>
+                    <th className="text-left px-6 py-3 font-semibold text-foreground">Module Access</th>
                     <th className="text-left px-6 py-3 font-semibold text-foreground">Joined</th>
                     <th className="text-right px-6 py-3 font-semibold text-foreground">Actions</th>
                   </tr>
@@ -269,56 +327,69 @@ No 179, High Level Road, Pannipitiya`;
                   {loading ? (
                     [...Array(3)].map((_, i) => (
                       <tr key={i} className="border-b border-border">
-                        {[...Array(7)].map((_, j) => (
+                        {[...Array(6)].map((_, j) => (
                           <td key={j} className="px-6 py-4"><div className="h-4 bg-muted rounded animate-pulse w-28" /></td>
                         ))}
                       </tr>
                     ))
                   ) : profiles.length === 0 ? (
-                    <tr><td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">No users found.</td></tr>
+                    <tr><td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">No users found.</td></tr>
                   ) : profiles.map(p => {
                     const linkedEmp = getLinkedEmployee(p.id);
+                    const isAdmin = p.role === 'admin';
                     return (
                       <tr key={p.id} className="border-b border-border hover:bg-muted/40 transition-colors">
                         <td className="px-6 py-3 font-medium text-foreground">
                           {p.full_name ?? '—'}
+                          {linkedEmp && <span className="block text-xs text-muted-foreground font-normal">{linkedEmp.employee_id} · {linkedEmp.designation}</span>}
                           {p.must_change_password && (
-                            <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-normal">(temporary password)</span>
+                            <span className="ml-1 text-xs text-amber-600 dark:text-amber-400 font-normal">(temporary password)</span>
                           )}
                         </td>
                         <td className="px-6 py-3 text-muted-foreground font-mono text-xs">{p.email ?? '—'}</td>
                         <td className="px-6 py-3">
-                          {linkedEmp ? (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                              <UserCheck size={12} /> {linkedEmp.employee_id} — {linkedEmp.designation}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground italic">Admin / Unlinked</span>
-                          )}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isAdmin ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
+                            {isAdmin && <Lock size={10} />}
+                            {roleLabel(p.role)}
+                          </span>
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground">{p.phone ?? '—'}</td>
                         <td className="px-6 py-3">
-                          <Select value={p.role} onValueChange={v => handleRoleChange(p.id, v as UserRole)} disabled={p.role === 'admin'}>
-                            <SelectTrigger className="w-32 h-7 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex flex-wrap gap-1 max-w-md">
+                            {(isAdmin ? ALL_PERMISSIONS : (p.permissions ?? [])).map(perm => {
+                              const m = PERMISSION_MODULES.find(x => x.key === perm);
+                              return m ? (
+                                <span key={perm} className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary">
+                                  {m.label}
+                                </span>
+                              ) : null;
+                            })}
+                            {!isAdmin && (p.permissions ?? []).length === 0 && (
+                              <span className="text-xs text-muted-foreground italic">No modules</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-3 text-muted-foreground">{new Date(p.created_at).toLocaleDateString('en-LK')}</td>
                         <td className="px-6 py-3 text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            disabled={resettingId === p.id}
-                            onClick={() => handleResetPassword(p)}
-                          >
-                            <KeyRound size={13} className="mr-1" />
-                            {resettingId === p.id ? 'Resetting...' : 'Reset Password'}
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => openEditPermissions(p)}
+                            >
+                              <ShieldCheck size={13} className="mr-1" /> Access
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={resettingId === p.id}
+                              onClick={() => handleResetPassword(p)}
+                            >
+                              <KeyRound size={13} className="mr-1" />
+                              {resettingId === p.id ? 'Resetting...' : 'Reset Password'}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -332,11 +403,11 @@ No 179, High Level Road, Pannipitiya`;
 
       {/* Create User Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-2xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create User Account for Employee</DialogTitle>
             <DialogDescription>
-              Select a registered employee to automatically use their registered email as their system username and send their portal credentials.
+              Select a registered employee, choose a base role, then tick exactly which modules this user can access.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateUser} className="space-y-4">
@@ -412,15 +483,44 @@ No 179, High Level Road, Pannipitiya`;
               />
             </div>
 
-            {/* Role */}
-            <div className="space-y-1.5">
-              <Label>System Role</Label>
-              <Select value={createForm.role} onValueChange={v => setCreateForm(f => ({ ...f, role: v as UserRole }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            {/* Base Role + Module Access */}
+            <div className="space-y-2.5 rounded-lg border border-border bg-muted/30 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <Label className="text-sm">Base Role (applies default module preset)</Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    e.g. Finance = Salary Management + Salary Slips only. You can still adjust the ticks below.
+                  </p>
+                </div>
+                <div className="w-full sm:w-44 shrink-0">
+                  <Select value={createForm.role} onValueChange={v => handleRolePreset(v as UserRole)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm">Module Access <span className="text-destructive">*</span></Label>
+                  <div className="flex gap-1.5">
+                    <Button type="button" variant="ghost" size="sm" className="h-6 text-xs px-2"
+                      onClick={() => setCreateForm(f => ({ ...f, permissions: [...ALL_PERMISSIONS] }))}>
+                      Select All
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 text-xs px-2"
+                      onClick={() => setCreateForm(f => ({ ...f, permissions: [] }))}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+                <PermCheckList
+                  perms={createForm.permissions}
+                  onChange={perms => setCreateForm(f => ({ ...f, permissions: perms }))}
+                />
+              </div>
             </div>
 
             <DialogFooter>
@@ -428,6 +528,77 @@ No 179, High Level Road, Pannipitiya`;
               <Button type="submit" disabled={creating}>{creating ? 'Creating Account...' : 'Create Account & Prepare Credentials'}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Access Permissions Dialog */}
+      <Dialog open={editTarget !== null} onOpenChange={open => { if (!open) setEditTarget(null); }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-2xl max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck size={18} className="text-primary" />
+              Module Access — {editTarget?.full_name ?? 'User'}
+            </DialogTitle>
+            <DialogDescription>
+              {editTarget?.role === 'admin'
+                ? 'Administrators always have full access to every module. This cannot be modified.'
+                : 'Tick the modules this user is allowed to see. Unticked modules disappear from their navigation and are blocked by the backend.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {editTarget && (
+            <div className="space-y-4">
+              {editTarget.role !== 'admin' ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label>Base Role</Label>
+                    <Select
+                      value={editRole}
+                      onValueChange={v => {
+                        const r = v as UserRole;
+                        setEditRole(r);
+                        setEditPerms([...ROLE_PERMISSION_PRESETS[r]]);
+                      }}
+                    >
+                      <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">Changing the role re-applies its default preset (you can still fine-tune the ticks).</p>
+                  </div>
+
+                  <div className="space-y-2.5 rounded-lg border border-border bg-muted/30 p-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Module Access</Label>
+                      <div className="flex gap-1.5">
+                        <Button type="button" variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setEditPerms([...ALL_PERMISSIONS])}>Select All</Button>
+                        <Button type="button" variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setEditPerms([])}>Clear</Button>
+                      </div>
+                    </div>
+                    <PermCheckList perms={editPerms} onChange={setEditPerms} />
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2.5 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                  <div className="flex items-center gap-2 text-sm text-foreground">
+                    <Lock size={14} className="text-primary" />
+                    <span className="font-medium">Administrator — Full Access (Locked)</span>
+                  </div>
+                  <PermCheckList perms={editPerms} onChange={() => {}} locked />
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button type="button" variant="secondary" onClick={() => setEditTarget(null)}>Cancel</Button>
+                {editTarget.role !== 'admin' && (
+                  <Button onClick={handleSavePermissions} disabled={savingPerms}>
+                    {savingPerms ? 'Saving...' : 'Save Access'}
+                  </Button>
+                )}
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -445,7 +616,6 @@ No 179, High Level Road, Pannipitiya`;
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Credentials Card */}
             <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
@@ -454,12 +624,7 @@ No 179, High Level Road, Pannipitiya`;
                 </div>
                 <div>
                   <span className="text-muted-foreground block mb-0.5">Portal URL</span>
-                  <a
-                    href={tempCreds?.portal_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-mono text-primary hover:underline text-xs inline-flex items-center gap-1"
-                  >
+                  <a href={tempCreds?.portal_url} target="_blank" rel="noreferrer" className="font-mono text-primary hover:underline text-xs inline-flex items-center gap-1">
                     {tempCreds?.portal_url} <ExternalLink size={11} />
                   </a>
                 </div>
@@ -484,7 +649,6 @@ No 179, High Level Road, Pannipitiya`;
               </div>
             </div>
 
-            {/* Email Actions */}
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-3.5 space-y-2.5">
               <div className="flex items-start gap-2">
                 <Mail size={16} className="text-primary shrink-0 mt-0.5" />
@@ -497,22 +661,10 @@ No 179, High Level Road, Pannipitiya`;
               </div>
 
               <div className="flex flex-wrap gap-2 pt-1">
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  className="text-xs flex-1 min-w-[160px]"
-                  onClick={openMailClient}
-                >
+                <Button type="button" variant="default" size="sm" className="text-xs flex-1 min-w-[160px]" onClick={openMailClient}>
                   <Mail size={13} className="mr-1.5" /> Send Email to Employee
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs flex-1 min-w-[160px]"
-                  onClick={copyInvitationEmail}
-                >
+                <Button type="button" variant="outline" size="sm" className="text-xs flex-1 min-w-[160px]" onClick={copyInvitationEmail}>
                   {copiedEmail ? <Check size={13} className="mr-1.5 text-emerald-600" /> : <Copy size={13} className="mr-1.5" />}
                   {copiedEmail ? 'Email Copied!' : 'Copy Invitation Email'}
                 </Button>

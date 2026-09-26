@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
@@ -15,19 +16,19 @@ interface NavItem {
   label: string;
   path: string;
   icon: React.ReactNode;
-  roles: string[];
 }
 
-const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard size={18} />, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
-  { label: 'Employees', path: '/employees', icon: <Users size={18} />, roles: ['admin', 'hr_admin', 'manager'] },
-  { label: 'Add Salary', path: '/salary/new', icon: <DollarSign size={18} />, roles: ['admin'] },
-  { label: 'Salary Slips', path: '/salary-slips', icon: <FileDown size={18} />, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
-  { label: 'Salary History', path: '/salary-history', icon: <FileText size={18} />, roles: ['admin', 'hr_admin', 'manager', 'staff'] },
-  { label: 'Leave Requests', path: '/leave-requests', icon: <CalendarCheck size={18} />, roles: ['admin', 'hr_admin', 'manager'] },
-  { label: 'My Leaves', path: '/my-leaves', icon: <CalendarCheck size={18} />, roles: ['staff'] },
-  { label: 'User Management', path: '/users', icon: <UserCog size={18} />, roles: ['admin'] },
-  { label: 'Leave Config', path: '/leave-config', icon: <Settings size={18} />, roles: ['admin'] },
+// Nav entries map to route configs; visibility = route permission
+const navItems: Array<NavItem & { routePath: string }> = [
+  { label: 'Dashboard', path: '/dashboard', routePath: '/dashboard', icon: <LayoutDashboard size={18} /> },
+  { label: 'Employees', path: '/employees', routePath: '/employees', icon: <Users size={18} /> },
+  { label: 'Add Salary', path: '/salary/new', routePath: '/salary/new', icon: <DollarSign size={18} /> },
+  { label: 'Salary Slips', path: '/salary-slips', routePath: '/salary-slips', icon: <FileDown size={18} /> },
+  { label: 'Salary History', path: '/salary-history', routePath: '/salary-history', icon: <FileText size={18} /> },
+  { label: 'Leave Requests', path: '/leave-requests', routePath: '/leave-requests', icon: <CalendarCheck size={18} /> },
+  { label: 'My Leaves', path: '/my-leaves', routePath: '/my-leaves', icon: <CalendarCheck size={18} /> },
+  { label: 'User Management', path: '/users', routePath: '/users', icon: <UserCog size={18} /> },
+  { label: 'Leave Config', path: '/leave-config', routePath: '/leave-config', icon: <Settings size={18} /> },
 ];
 
 const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
@@ -35,7 +36,14 @@ const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
   const navigate = useNavigate();
   const role = profile?.role ?? 'staff';
 
-  const visibleItems = navItems.filter(i => i.roles.includes(role));
+  // Show "My Leaves" instead of "Leave Requests" for staff-like roles
+  const isReviewer = profile?.role === 'admin' || profile?.role === 'hr_admin' || profile?.role === 'manager';
+  const visibleItems = navItems.filter(item => {
+    if (item.path === '/my-leaves' && isReviewer) return false;
+    if (item.path === '/leave-requests' && !isReviewer) return false;
+    const cfg = routeConfigs.find(r => r.path === item.routePath);
+    return cfg ? hasRoutePermission(cfg, profile) : false;
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -85,7 +93,7 @@ const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-sidebar-foreground truncate">{profile?.full_name ?? 'User'}</p>
-            <p className="text-xs text-sidebar-foreground/50 capitalize">{role.replace('_', ' ')}</p>
+            <p className="text-xs text-sidebar-foreground/50 capitalize">{role === 'finance' ? 'Finance' : role.replace('_', ' ')}</p>
           </div>
         </div>
         <Button

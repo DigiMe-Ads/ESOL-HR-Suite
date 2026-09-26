@@ -30,13 +30,29 @@ function generateTempPassword(): string {
   return pwd.join('');
 }
 
+// Module permission keys — must match DB constraint & frontend catalog
+const MODULES = ['dashboard', 'employees', 'leaves', 'salary_management', 'salary_slips', 'user_management'];
+const ASSIGNABLE_ROLES = ['hr_admin', 'manager', 'staff', 'finance']; // 'admin' is reserved
+
+// Validate a permissions array; returns null when invalid
+function validatePermissions(perms: unknown): string[] | null {
+  if (!Array.isArray(perms)) return null;
+  const seen = new Set<string>();
+  for (const p of perms) {
+    if (typeof p !== 'string' || !MODULES.includes(p)) return null;
+    seen.add(p);
+  }
+  return [...seen];
+}
+
 interface CreateBody {
   action: 'create';
   first_name: string;
   last_name: string;
   email: string;
   phone?: string;
-  role: 'hr_admin' | 'manager' | 'staff'; // 'admin' is reserved and cannot be assigned from the UI
+  role: 'hr_admin' | 'manager' | 'staff' | 'finance';
+  permissions?: string[];
 }
 
 interface ResetBody {
@@ -50,7 +66,14 @@ interface SetBanBody {
   banned: boolean;
 }
 
-type Body = CreateBody | ResetBody | SetBanBody;
+interface UpdatePermissionsBody {
+  action: 'update_permissions';
+  user_id: string;
+  role?: 'hr_admin' | 'manager' | 'staff' | 'finance';
+  permissions: string[];
+}
+
+type Body = CreateBody | ResetBody | SetBanBody | UpdatePermissionsBody;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -64,7 +87,6 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return json({ error: 'Unauthorized' }, 401);
 
-    // Verify caller is HR Admin
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -88,24 +110,33 @@ Deno.serve(async (req) => {
     // ── CREATE USER ─────────────────────────────────────────────
     if (body.action === 'create') {
       if (!isAdmin) return json({ error: 'Forbidden — Administrator only' }, 403);
-      const { first_name, last_name, email, phone, role } = body;
+      const { first_name, last_name, email, phone, role, permissions } = body;
       if (!first_name?.trim() || !last_name?.trim()) return json({ error: 'First name and last name are required' }, 400);
       if (!email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return json({ error: 'A valid email address is required' }, 400);
-      if (!['hr_admin', 'manager', 'staff'].includes(role)) return json({ error: 'Invalid role' }, 400);
+      if (!ASSIGNABLE_ROLES.includes(role)) return json({ error: 'Invalid role' }, 400);
+
+      // Optional explicit module permissions; when omitted the DB trigger
+      // applies the default preset for the chosen role.
+      const metadata: Record<string, unknown> = {
+        first_name: first_name.trim(),
+        last_name: last_name.trim(),
+        full_name: `${first_name.trim()} ${last_name.trim()}`,
+        phone: phone?.trim() || null,
+        role,
+        must_change_password: 'true',
+      };
+      if (permissions !== undefined) {
+        const valid = validatePermissions(permissions);
+        if (valid === null) return json({ error: 'Invalid module permissions' }, 400);
+        metadata.permissions = valid;
+      }
 
       const tempPassword = generateTempPassword();
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email: email.trim().toLowerCase(),
         password: tempPassword,
         email_confirm: true,
-        user_metadata: {
-          first_name: first_name.trim(),
-          last_name: last_name.trim(),
-          full_name: `${first_name.trim()} ${last_name.trim()}`,
-          phone: phone?.trim() || null,
-          role,
-          must_change_password: 'true',
-        },
+        user_metadata: metadata,
       });
       if (createErr) return json({ error: createErr.message }, 400);
 
@@ -122,6 +153,36 @@ Deno.serve(async (req) => {
       }
 
       return json({ user_id: created.user?.id, temp_password: tempPassword, login_link, email_sent });
+    }
+
+    // ── UPDATE MODULE PERMISSIONS / ROLE ────────────────────────
+    if (body.action === 'update_permissions') {
+      if (!isAdmin) return json({ error: 'Forbidden — Administrator only' }, 403);
+      const { user_id, role, permissions } = body;
+      if (!user_id) return json({ error: 'user_id is required' }, 400);
+      const validPerms = validatePermissions(permissions);
+      if (validPerms === null) return json({ error: 'Invalid module permissions' }, 400);
+      if (role !== undefined && !ASSIGNABLE_ROLES.includes(role)) return json({ error: 'Invalid role' }, 400);
+
+      // Admin accounts always keep full access and cannot be modified
+      const { data: target } = await admin
+        .from('profiles')
+        .select('role')
+        .eq('id', user_id)
+        .maybeSingle();
+      if (!target) return json({ error: 'User not found' }, 404);
+      if (target.role === 'admin') return json({ error: 'Administrator access is locked and cannot be modified' }, 400);
+
+      const updates: Record<string, unknown> = { permissions: validPerms };
+      if (role !== undefined) updates.role = role;
+
+      const { error: updateErr } = await admin
+        .from('profiles')
+        .update(updates)
+        .eq('id', user_id);
+      if (updateErr) return json({ error: updateErr.message }, 400);
+
+      return json({ ok: true, permissions: validPerms });
     }
 
     // ── RESET PASSWORD ──────────────────────────────────────────

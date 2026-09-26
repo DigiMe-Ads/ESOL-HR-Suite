@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/db/supabase';
-import type { Profile } from '@/types/types';
+import type { Profile, Permission } from '@/types/types';
 import { getProfile } from '@/db/api';
 
 interface AuthContextValue {
@@ -11,6 +11,7 @@ interface AuthContextValue {
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  hasPermission: (module: Permission) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   signOut: async () => {},
   refreshProfile: async () => {},
+  hasPermission: () => false,
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -54,6 +56,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, [fetchProfile]);
 
+  // Admins always have every module; other roles check their granted permission list
+  const hasPermission = useCallback((module: Permission): boolean => {
+    if (!profile) return false;
+    if (profile.role === 'admin') return true;
+    return (profile.permissions ?? []).includes(module);
+  }, [profile]);
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null);
@@ -62,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, signOut, refreshProfile, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

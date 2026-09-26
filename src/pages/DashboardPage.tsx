@@ -4,7 +4,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getDashboardStats, getEmployees, getSalaryRecords, getLeaveRequests, getEmployeeByProfileId } from '@/db/api';
+import { getDashboardStats, getSalaryRecords, getLeaveRequests, getEmployeeByProfileId } from '@/db/api';
+import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import { formatLKR } from '@/lib/salaryCalc';
 import { Users, FileText, Clock, DollarSign, ChevronRight, TrendingUp, UserMinus } from 'lucide-react';
 
@@ -21,18 +22,24 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        if (profile?.role === 'admin' || profile?.role === 'hr_admin' || profile?.role === 'manager') {
+        // Permission-driven data scope (counts respect RLS silently)
+        const seeEmployees = hasRoutePermission(routeConfigs.find(r => r.path === '/employees')!, profile);
+        const seeLeaves = hasRoutePermission(routeConfigs.find(r => r.path === '/leave-requests')!, profile);
+        const seeSalaries = hasRoutePermission(routeConfigs.find(r => r.path === '/salary/history-marker') ?? routeConfigs.find(r => r.path === '/salary-slips')!, profile);
+        const isSelfView = !seeEmployees && !seeLeaves && !seeSalaries;
+
+        if (!isSelfView) {
           const [s, salaries, leaves] = await Promise.all([
-            getDashboardStats(),
-            getSalaryRecords(),
-            getLeaveRequests(undefined, 'pending'),
+            seeEmployees ? getDashboardStats() : null,
+            seeSalaries || seeEmployees ? getSalaryRecords() : Promise.resolve([]),
+            seeLeaves ? getLeaveRequests(undefined, 'pending') : Promise.resolve([]),
           ]);
-          setStats(s);
-          setRecentPayrolls(salaries.slice(0, 5).map(r => ({ id: r.id, payroll_month: r.payroll_month, net_pay: r.net_pay, employee_id: r.employee_id })));
-          setRecentLeaves(leaves.slice(0, 5).map(r => ({ id: r.id, leave_type: r.leave_type, start_date: r.start_date, status: r.status, total_days: r.total_days })));
+          if (s) setStats(s);
+          if (salaries) setRecentPayrolls(salaries.slice(0, 5).map(r => ({ id: r.id, payroll_month: r.payroll_month, net_pay: r.net_pay, employee_id: r.employee_id })));
+          if (leaves) setRecentLeaves(leaves.slice(0, 5).map(r => ({ id: r.id, leave_type: r.leave_type, start_date: r.start_date, status: r.status, total_days: r.total_days })));
         } else {
-          // Staff: own data
-          const emp = await getEmployeeByProfileId(profile!.id);
+          // Self view (staff-like): own records only
+          const emp = profile ? await getEmployeeByProfileId(profile.id) : null;
           if (emp) {
             const [salaries, leaves] = await Promise.all([
               getSalaryRecords(emp.id),
@@ -48,6 +55,9 @@ const DashboardPage: React.FC = () => {
   }, [profile]);
 
   const role = profile?.role ?? 'staff';
+  const can = (path: string) => hasRoutePermission(routeConfigs.find(r => r.path === path)!, profile);
+  const isReviewer = can('/leave-requests');
+  const isSelfViewer = !isReviewer && can('/my-leaves');
 
   const statusColor: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -103,6 +113,7 @@ const DashboardPage: React.FC = () => {
               </Card>
             </>
           )}
+          {(isReviewer || isSelfViewer) && (
           <Card className="border-border shadow-card">
             <CardContent className="p-5 flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
@@ -114,6 +125,8 @@ const DashboardPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+          )}
+          {(can('/salary-slips') || can('/salary-history')) && (
           <Card className="border-border shadow-card">
             <CardContent className="p-5 flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
@@ -125,18 +138,22 @@ const DashboardPage: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Recent Payrolls */}
+          {(can('/salary-slips') || can('/salary-history') || can('/salary/new')) && (
           <Card className="border-border shadow-card">
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <DollarSign size={16} className="text-primary" /> Recent Payroll
               </CardTitle>
-              <Button variant="ghost" size="sm" className="text-primary text-xs h-7" onClick={() => navigate('/salary-history')}>
-                View All <ChevronRight size={14} />
-              </Button>
+              {can('/salary-history') && (
+                <Button variant="ghost" size="sm" className="text-primary text-xs h-7" onClick={() => navigate('/salary-history')}>
+                  View All <ChevronRight size={14} />
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="px-0 pb-4">
               {recentPayrolls.length === 0 ? (
@@ -155,17 +172,25 @@ const DashboardPage: React.FC = () => {
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Recent Leave Requests */}
+          {(isReviewer || isSelfViewer) && (
           <Card className="border-border shadow-card">
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
-                <FileText size={16} className="text-primary" /> {role === 'staff' ? 'My Leaves' : 'Leave Requests'}
+                <FileText size={16} className="text-primary" /> {isReviewer ? 'Leave Requests' : 'My Leaves'}
               </CardTitle>
-              <Button variant="ghost" size="sm" className="text-primary text-xs h-7"
-                onClick={() => navigate(role === 'staff' ? '/my-leaves' : '/leave-requests')}>
-                View All <ChevronRight size={14} />
-              </Button>
+              {isReviewer && (
+                <Button variant="ghost" size="sm" className="text-primary text-xs h-7" onClick={() => navigate('/leave-requests')}>
+                  View All <ChevronRight size={14} />
+                </Button>
+              )}
+              {!isReviewer && can('/my-leaves') && (
+                <Button variant="ghost" size="sm" className="text-primary text-xs h-7" onClick={() => navigate('/my-leaves')}>
+                  View All <ChevronRight size={14} />
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="px-0 pb-4">
               {recentLeaves.length === 0 ? (
@@ -187,31 +212,32 @@ const DashboardPage: React.FC = () => {
               )}
             </CardContent>
           </Card>
+          )}
         </div>
 
         {/* Quick Actions */}
-        {(role === 'admin' || role === 'hr_admin') && (
+        {(can('/employees/new') || can('/salary/new')) && (
           <Card className="border-border shadow-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-3">
-              <Button onClick={() => navigate('/employees/new')}>Add Employee</Button>
-              <Button variant="secondary" onClick={() => navigate('/salary/new')}>Add Salary Entry</Button>
-              {role === 'admin' && <Button variant="secondary" onClick={() => navigate('/users')}>Manage Users</Button>}
-              <Button variant="secondary" onClick={() => navigate('/leave-requests')}>Review Leaves</Button>
-              <Button variant="secondary" onClick={() => navigate('/salary-slips')}>Salary Slips</Button>
+              {can('/employees/new') && <Button onClick={() => navigate('/employees/new')}>Add Employee</Button>}
+              {can('/salary/new') && <Button variant="secondary" onClick={() => navigate('/salary/new')}>Add Salary Entry</Button>}
+              {can('/users') && <Button variant="secondary" onClick={() => navigate('/users')}>Manage Users</Button>}
+              {isReviewer && <Button variant="secondary" onClick={() => navigate('/leave-requests')}>Review Leaves</Button>}
+              {can('/salary-slips') && <Button variant="secondary" onClick={() => navigate('/salary-slips')}>Salary Slips</Button>}
             </CardContent>
           </Card>
         )}
-        {role === 'staff' && (
+        {!isReviewer && (can('/my-leaves/apply') || can('/salary-history')) && (
           <Card className="border-border shadow-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-3">
-              <Button onClick={() => navigate('/my-leaves/apply')}>Apply for Leave</Button>
-              <Button variant="secondary" onClick={() => navigate('/salary-history')}>View My Salary</Button>
+              {can('/my-leaves/apply') && <Button onClick={() => navigate('/my-leaves/apply')}>Apply for Leave</Button>}
+              {can('/salary-history') && <Button variant="secondary" onClick={() => navigate('/salary-history')}>View My Salary</Button>}
             </CardContent>
           </Card>
         )}

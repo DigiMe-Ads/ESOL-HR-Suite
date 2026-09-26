@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { routes } from '@/routes';
+import { routes, hasRoutePermission, getFirstPermittedPath } from '@/routes';
 
 interface RouteGuardProps {
   children: React.ReactNode;
@@ -53,7 +53,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
     }
     // A signed-in user has nothing to do on public pages (fixes the "must refresh after login" issue)
     if (user && isPublic) {
-      navigate('/dashboard', { replace: true });
+      navigate(getFirstPermittedPath(profile), { replace: true });
       return;
     }
     // Temporary password: force a password change before anything else
@@ -61,10 +61,10 @@ export function RouteGuard({ children }: RouteGuardProps) {
       navigate('/change-password', { replace: true });
       return;
     }
-    // Role-based access control on protected routes
+    // Permission + role based access control on protected routes
     if (user && profile && !isPublic) {
       const route = findRouteConfig(location.pathname);
-      if (route?.roles && !route.roles.includes(profile.role)) {
+      if (route && !hasRoutePermission(route, profile)) {
         navigate('/403', { replace: true });
         return;
       }

@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getSalaryRecords, getEmployees, getEmployeeByProfileId } from '@/db/api';
+import { getSalaryRecords, getEmployeeDirectory, getEmployeeByProfileId, getEmployeeForSlip } from '@/db/api';
+import type { EmployeeDirectoryEntry } from '@/db/api';
 import { formatLKR } from '@/lib/salaryCalc';
 import { generateSlipPdf } from '@/lib/slipPdf';
 import { useAuth } from '@/contexts/AuthContext';
+import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import type { SalaryRecord, Employee } from '@/types/types';
 import { Download, Eye, Search, FileText } from 'lucide-react';
 import { toast } from 'sonner';
@@ -18,22 +20,24 @@ const SalarySlipsPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [records, setRecords] = useState<SalaryRecord[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeDirectoryEntry[]>([]);
   const [filterEmp, setFilterEmp] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  const canViewAll = hasRoutePermission(routeConfigs.find(r => r.path === '/salary/new')!, profile);
+
   useEffect(() => {
     (async () => {
-      if (profile?.role === 'staff') {
-        const emp = await getEmployeeByProfileId(profile.id);
+      if (!canViewAll) {
+        const emp = profile ? await getEmployeeByProfileId(profile.id) : null;
         if (emp) {
           setEmployees([emp]);
           setRecords(await getSalaryRecords(emp.id));
         }
       } else {
-        const [recs, emps] = await Promise.all([getSalaryRecords(), getEmployees()]);
+        const [recs, emps] = await Promise.all([getSalaryRecords(), getEmployeeDirectory()]);
         setRecords(recs);
         setEmployees(emps);
       }
@@ -50,10 +54,10 @@ const SalarySlipsPage: React.FC = () => {
   });
 
   const handleDownload = async (r: SalaryRecord) => {
-    const emp = empMap[r.employee_id];
-    if (!emp) { toast.error('Employee record not found'); return; }
     setDownloadingId(r.id);
     try {
+      const emp = await getEmployeeForSlip(r.employee_id);
+      if (!emp) { toast.error('Employee record not found'); return; }
       await generateSlipPdf(r, emp);
     } finally {
       setDownloadingId(null);
@@ -75,7 +79,7 @@ const SalarySlipsPage: React.FC = () => {
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input placeholder="Search month..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
               </div>
-              {profile?.role !== 'staff' && (
+              {canViewAll && (
                 <Select value={filterEmp} onValueChange={setFilterEmp}>
                   <SelectTrigger className="w-52 shrink-0"><SelectValue placeholder="All employees" /></SelectTrigger>
                   <SelectContent>
@@ -93,7 +97,7 @@ const SalarySlipsPage: React.FC = () => {
               <table className="w-full text-sm whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-border bg-muted/40">
-                    {profile?.role !== 'staff' && <th className="text-left px-6 py-3 font-semibold text-foreground">Employee</th>}
+                    {canViewAll && <th className="text-left px-6 py-3 font-semibold text-foreground">Employee</th>}
                     <th className="text-left px-6 py-3 font-semibold text-foreground">Month</th>
                     <th className="text-left px-6 py-3 font-semibold text-foreground">Period</th>
                     <th className="text-right px-6 py-3 font-semibold text-foreground">Gross Pay</th>
@@ -114,7 +118,7 @@ const SalarySlipsPage: React.FC = () => {
                     <tr><td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">No salary records found.</td></tr>
                   ) : filtered.map(r => (
                     <tr key={r.id} className="border-b border-border hover:bg-muted/40 transition-colors">
-                      {profile?.role !== 'staff' && (
+                      {canViewAll && (
                         <td className="px-6 py-3">
                           <p className="font-medium text-foreground">{empMap[r.employee_id]?.full_name ?? '—'}</p>
                           <p className="text-xs text-muted-foreground">{empMap[r.employee_id]?.employee_id}</p>

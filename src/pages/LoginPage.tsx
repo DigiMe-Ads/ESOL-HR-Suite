@@ -36,7 +36,7 @@ const LoginPage: React.FC = () => {
     // Navigate immediately — no page refresh needed. RouteGuard will force a
     // password change redirect if the account still uses a temporary password.
     const from = (location.state as { from?: string } | null)?.from;
-    navigate(from ?? '/dashboard', { replace: true });
+    navigate(from ?? '/dashboard', { replace: true }); // RouteGuard re-routes if dashboard not permitted
   };
 
   return (

@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getSalaryRecords, getEmployees, deleteSalaryRecord } from '@/db/api';
+import { getSalaryRecords, getEmployeeDirectory, deleteSalaryRecord, getEmployeeByProfileId } from '@/db/api';
+import type { EmployeeDirectoryEntry } from '@/db/api';
 import { formatLKR } from '@/lib/salaryCalc';
 import { useAuth } from '@/contexts/AuthContext';
-import { getEmployeeByProfileId } from '@/db/api';
+import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import type { SalaryRecord, Employee } from '@/types/types';
 import { Plus, Pencil, Trash2, FileText, Search } from 'lucide-react';
 import { toast } from 'sonner';
@@ -21,21 +22,23 @@ const SalaryHistoryPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [records, setRecords] = useState<SalaryRecord[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeDirectoryEntry[]>([]);
   const [filterEmp, setFilterEmp] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
+  const canManageAll = hasRoutePermission(routeConfigs.find(r => r.path === '/salary/new')!, profile);
+
   const load = async () => {
     setLoading(true);
-    if (profile?.role === 'staff') {
-      const emp = await getEmployeeByProfileId(profile.id);
+    if (!canManageAll) {
+      const emp = profile ? await getEmployeeByProfileId(profile.id) : null;
       if (emp) {
         const recs = await getSalaryRecords(emp.id);
         setRecords(recs);
       }
     } else {
-      const [recs, emps] = await Promise.all([getSalaryRecords(), getEmployees()]);
+      const [recs, emps] = await Promise.all([getSalaryRecords(), getEmployeeDirectory()]);
       setRecords(recs);
       setEmployees(emps);
     }
@@ -66,7 +69,7 @@ const SalaryHistoryPage: React.FC = () => {
             <h1 className="text-xl md:text-2xl font-semibold text-foreground">Salary History</h1>
             <p className="text-sm text-muted-foreground mt-0.5">All payroll records</p>
           </div>
-          {(profile?.role === 'admin' || profile?.role === 'hr_admin') && (
+          {hasRoutePermission(routeConfigs.find(r => r.path === '/salary/new')!, profile) && (
             <Button onClick={() => navigate('/salary/new')} className="shrink-0">
               <Plus size={16} className="mr-1" /> Add Salary Entry
             </Button>
@@ -80,7 +83,7 @@ const SalaryHistoryPage: React.FC = () => {
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input placeholder="Search month..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
               </div>
-              {profile?.role !== 'staff' && (
+              {canManageAll && (
                 <Select value={filterEmp} onValueChange={setFilterEmp}>
                   <SelectTrigger className="w-52 shrink-0"><SelectValue placeholder="All employees" /></SelectTrigger>
                   <SelectContent>
@@ -98,7 +101,7 @@ const SalaryHistoryPage: React.FC = () => {
               <table className="w-full text-sm whitespace-nowrap">
                 <thead>
                   <tr className="border-b border-border bg-muted/40">
-                    {profile?.role !== 'staff' && <th className="text-left px-6 py-3 font-semibold text-foreground">Employee</th>}
+                    {canManageAll && <th className="text-left px-6 py-3 font-semibold text-foreground">Employee</th>}
                     <th className="text-left px-6 py-3 font-semibold text-foreground">Month</th>
                     <th className="text-left px-6 py-3 font-semibold text-foreground">Period</th>
                     <th className="text-right px-6 py-3 font-semibold text-foreground">Days</th>
@@ -120,7 +123,7 @@ const SalaryHistoryPage: React.FC = () => {
                     <tr><td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">No salary records found.</td></tr>
                   ) : filtered.map(r => (
                     <tr key={r.id} className="border-b border-border hover:bg-muted/40 transition-colors">
-                      {profile?.role !== 'staff' && (
+                      {canManageAll && (
                         <td className="px-6 py-3">
                           <p className="font-medium text-foreground">{empMap[r.employee_id]?.full_name ?? '—'}</p>
                           <p className="text-xs text-muted-foreground">{empMap[r.employee_id]?.employee_id}</p>
@@ -136,7 +139,7 @@ const SalaryHistoryPage: React.FC = () => {
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/salary/${r.id}/slip`)}>
                             <FileText size={15} />
                           </Button>
-                          {(profile?.role === 'admin' || profile?.role === 'hr_admin') && (
+                          {hasRoutePermission(routeConfigs.find(r => r.path === '/salary/:id/edit')!, profile) && (
                             <>
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/salary/${r.id}/edit`)}>
                                 <Pencil size={15} />

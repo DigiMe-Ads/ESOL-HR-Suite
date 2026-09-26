@@ -1,5 +1,5 @@
 import { supabase } from '@/db/supabase';
-import type { Employee, SalaryRecord, LeaveRequest, LeaveTypeConfig, Profile, UserRole, LeaveType } from '@/types/types';
+import type { Employee, SalaryRecord, LeaveRequest, LeaveTypeConfig, Profile, UserRole, LeaveType, Permission } from '@/types/types';
 import { round2 } from '@/lib/salaryCalc';
 
 // =================== PROFILES ===================
@@ -47,9 +47,15 @@ async function invokeUserAdmin<T>(body: Record<string, unknown>): Promise<{ data
 }
 
 export function createUserAccount(params: {
-  first_name: string; last_name: string; email: string; phone?: string; role: UserRole;
+  first_name: string; last_name: string; email: string; phone?: string; role: UserRole; permissions: Permission[];
 }): Promise<{ data: CreateUserResult | null; error: string | null }> {
   return invokeUserAdmin<CreateUserResult>({ action: 'create', ...params });
+}
+
+export function updateUserPermissions(params: {
+  user_id: string; permissions: Permission[]; role?: UserRole;
+}): Promise<{ data: { ok: boolean } | null; error: string | null }> {
+  return invokeUserAdmin<{ ok: boolean }>({ action: 'update_permissions', ...params });
 }
 
 export function resetUserPassword(userId: string): Promise<{ data: ResetPasswordResult | null; error: string | null }> {
@@ -61,6 +67,36 @@ export function setUserBan(userId: string, banned: boolean): Promise<{ data: { o
 }
 
 // =================== EMPLOYEES ===================
+// Minimal read-only directory (id, employee_id, full_name, designation) —
+// accessible to salary/leave viewers who lack full employee permission
+export interface EmployeeDirectoryEntry {
+  id: string;
+  employee_id: string;
+  full_name: string;
+  designation: string;
+  employment_status: string;
+}
+
+// Full employee record for salary slip generation — granted to salary_slips
+// permission holders even without full employee management access
+export async function getEmployeeForSlip(employeeId: string): Promise<Employee | null> {
+  const { data, error } = await supabase.rpc('get_employee_for_slip', { emp_id: employeeId });
+  if (error) {
+    console.error('get_employee_for_slip error:', error.message);
+    return null;
+  }
+  return (data as Employee) ?? null;
+}
+
+export async function getEmployeeDirectory(): Promise<EmployeeDirectoryEntry[]> {
+  const { data, error } = await supabase.rpc('get_employee_directory');
+  if (error) {
+    console.error('get_employee_directory error:', error.message);
+    return [];
+  }
+  return Array.isArray(data) ? data : [];
+}
+
 export async function getEmployees(search?: string): Promise<Employee[]> {
   let query = supabase
     .from('employees')
@@ -257,10 +293,8 @@ export async function reviewLeaveRequest(
   return { error: null };
 }
 
-// =================== USER MANAGEMENT (HR Admin) ===================
-export async function updateUserRole(userId: string, role: UserRole): Promise<void> {
-  await supabase.from('profiles').update({ role }).eq('id', userId);
-}
+// =================== USER MANAGEMENT ===================
+// Role/permission changes go through the user-admin Edge Function (updateUserPermissions).
 
 // =================== DASHBOARD STATS ===================
 export async function getDashboardStats(): Promise<{
