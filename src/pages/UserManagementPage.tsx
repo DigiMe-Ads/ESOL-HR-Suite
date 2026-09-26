@@ -1,0 +1,536 @@
+import React, { useEffect, useState } from 'react';
+import AppLayout from '@/components/layouts/AppLayout';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getAllProfiles, updateUserRole, createUserAccount, resetUserPassword, getEmployees, updateEmployee } from '@/db/api';
+import type { Profile, UserRole, Employee } from '@/types/types';
+import { toast } from 'sonner';
+import { UserPlus, KeyRound, Copy, Check, Mail, ExternalLink, CheckCircle2, UserCheck, AlertCircle } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from '@/components/ui/dialog';
+
+const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: 'staff', label: 'Staff' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'hr_admin', label: 'HR User' },
+];
+
+interface CreateFormState {
+  employee_id: string; // ID of selected employee or 'manual'
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  role: UserRole;
+}
+
+const EMPTY_CREATE: CreateFormState = {
+  employee_id: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  role: 'staff',
+};
+
+interface TempCredsState {
+  name: string;
+  email: string;
+  password: string;
+  portal_url: string;
+  is_reset?: boolean;
+}
+
+const UserManagementPage: React.FC = () => {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateFormState>({ ...EMPTY_CREATE });
+  const [creating, setCreating] = useState(false);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [tempCreds, setTempCreds] = useState<TempCredsState | null>(null);
+  const [copiedPwd, setCopiedPwd] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const [pList, eList] = await Promise.all([
+      getAllProfiles(),
+      getEmployees(),
+    ]);
+    setProfiles(pList);
+    setEmployees(eList);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  // When an employee is chosen in the Create User dialog, auto-fill their email, name, and phone
+  const handleEmployeeSelect = (empId: string) => {
+    if (empId === 'manual') {
+      setCreateForm(f => ({ ...f, employee_id: 'manual', first_name: '', last_name: '', email: '', phone: '' }));
+      return;
+    }
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return;
+
+    let fName = emp.first_name || '';
+    let lName = emp.last_name || '';
+    if (!fName && emp.full_name) {
+      const parts = emp.full_name.trim().split(/\s+/);
+      fName = parts[0] || '';
+      lName = parts.slice(1).join(' ') || '';
+    }
+
+    setCreateForm(f => ({
+      ...f,
+      employee_id: emp.id,
+      first_name: fName,
+      last_name: lName,
+      email: emp.email?.trim() || '',
+      phone: emp.phone?.trim() || '',
+    }));
+  };
+
+  const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    await updateUserRole(userId, newRole);
+    toast.success('Role updated');
+    load();
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { first_name, last_name, email, phone, role, employee_id } = createForm;
+    if (!first_name.trim() || !last_name.trim()) {
+      toast.error('First name and last name are required'); return;
+    }
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast.error('A valid email address is required (it serves as the username)'); return;
+    }
+    if (phone && !/^[+\d][\d\s-]{6,19}$/.test(phone.trim())) {
+      toast.error('Please enter a valid phone number'); return;
+    }
+
+    setCreating(true);
+    const res = await createUserAccount({
+      first_name: first_name.trim(),
+      last_name: last_name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone.trim() || undefined,
+      role,
+    });
+    setCreating(false);
+
+    if (res.error || !res.data) {
+      toast.error(res.error ?? 'Failed to create user');
+      return;
+    }
+
+    // If linked to an employee record, update employee.profile_id and ensure employee.email matches
+    if (employee_id && employee_id !== 'manual') {
+      await updateEmployee(employee_id, {
+        profile_id: res.data.user_id,
+        email: email.trim().toLowerCase(),
+        phone: phone.trim() || null,
+      });
+    }
+
+    const portalUrl = `${window.location.origin}/login`;
+    setTempCreds({
+      name: `${first_name.trim()} ${last_name.trim()}`,
+      email: email.trim().toLowerCase(),
+      password: res.data.temp_password,
+      portal_url: portalUrl,
+      is_reset: false,
+    });
+
+    setShowCreate(false);
+    setCreateForm({ ...EMPTY_CREATE });
+    toast.success('User account created successfully');
+    load();
+  };
+
+  const handleResetPassword = async (p: Profile) => {
+    setResettingId(p.id);
+    const res = await resetUserPassword(p.id);
+    setResettingId(null);
+    if (res.error || !res.data) {
+      toast.error(res.error ?? 'Failed to reset password'); return;
+    }
+    const portalUrl = `${window.location.origin}/login`;
+    setTempCreds({
+      name: p.full_name || 'Employee',
+      email: p.email ?? '',
+      password: res.data.temp_password,
+      portal_url: portalUrl,
+      is_reset: true,
+    });
+    load();
+  };
+
+  const copyPassword = async () => {
+    if (!tempCreds) return;
+    try {
+      await navigator.clipboard.writeText(tempCreds.password);
+      setCopiedPwd(true);
+      setTimeout(() => setCopiedPwd(false), 2000);
+      toast.success('Temporary password copied');
+    } catch {
+      toast.error('Copy failed');
+    }
+  };
+
+  // Build the complete invitation email text
+  const getEmailContent = () => {
+    if (!tempCreds) return { subject: '', body: '' };
+    const subject = tempCreds.is_reset
+      ? 'ESOL Premier Campus Portal — Your New Password'
+      : 'Welcome to ESOL Premier Campus Portal — Your Login Credentials';
+    const body = `Dear ${tempCreds.name},
+
+Your user account for the ESOL Premier Campus Employee Portal is ready.
+
+Portal Login URL: ${tempCreds.portal_url}
+Username (Your Email): ${tempCreds.email}
+Temporary Password: ${tempCreds.password}
+
+Please log in to the portal using your username and temporary password. Upon your first sign-in, you will be prompted to set your own permanent password.
+
+If you have any questions, please contact the HR Department.
+
+Best regards,
+ESOL Premier Campus HR & Administration
+No 179, High Level Road, Pannipitiya`;
+
+    return { subject, body };
+  };
+
+  const copyInvitationEmail = async () => {
+    const { body } = getEmailContent();
+    try {
+      await navigator.clipboard.writeText(body);
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
+      toast.success('Full invitation email copied to clipboard');
+    } catch {
+      toast.error('Copy failed');
+    }
+  };
+
+  // Open the employee's email in default mail client
+  const openMailClient = () => {
+    if (!tempCreds) return;
+    const { subject, body } = getEmailContent();
+    const mailto = `mailto:${encodeURIComponent(tempCreds.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+  };
+
+  // Map profile id to linked employee if any
+  const getLinkedEmployee = (profileId: string) => {
+    return employees.find(e => e.profile_id === profileId);
+  };
+
+  return (
+    <AppLayout>
+      <div className="p-6 md:p-8 space-y-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-xl md:text-2xl font-semibold text-foreground">User Management</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Create accounts for registered employees, manage roles, and issue login credentials
+            </p>
+          </div>
+          <Button onClick={() => setShowCreate(true)} className="shrink-0">
+            <UserPlus size={16} className="mr-1.5" /> Create User
+          </Button>
+        </div>
+
+        <Card className="border-border shadow-card">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="text-left px-6 py-3 font-semibold text-foreground">Name</th>
+                    <th className="text-left px-6 py-3 font-semibold text-foreground">Email (Username)</th>
+                    <th className="text-left px-6 py-3 font-semibold text-foreground">Linked Employee</th>
+                    <th className="text-left px-6 py-3 font-semibold text-foreground">Phone</th>
+                    <th className="text-left px-6 py-3 font-semibold text-foreground">Role</th>
+                    <th className="text-left px-6 py-3 font-semibold text-foreground">Joined</th>
+                    <th className="text-right px-6 py-3 font-semibold text-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    [...Array(3)].map((_, i) => (
+                      <tr key={i} className="border-b border-border">
+                        {[...Array(7)].map((_, j) => (
+                          <td key={j} className="px-6 py-4"><div className="h-4 bg-muted rounded animate-pulse w-28" /></td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : profiles.length === 0 ? (
+                    <tr><td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">No users found.</td></tr>
+                  ) : profiles.map(p => {
+                    const linkedEmp = getLinkedEmployee(p.id);
+                    return (
+                      <tr key={p.id} className="border-b border-border hover:bg-muted/40 transition-colors">
+                        <td className="px-6 py-3 font-medium text-foreground">
+                          {p.full_name ?? '—'}
+                          {p.must_change_password && (
+                            <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-normal">(temporary password)</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3 text-muted-foreground font-mono text-xs">{p.email ?? '—'}</td>
+                        <td className="px-6 py-3">
+                          {linkedEmp ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                              <UserCheck size={12} /> {linkedEmp.employee_id} — {linkedEmp.designation}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Admin / Unlinked</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3 text-muted-foreground">{p.phone ?? '—'}</td>
+                        <td className="px-6 py-3">
+                          <Select value={p.role} onValueChange={v => handleRoleChange(p.id, v as UserRole)} disabled={p.role === 'admin'}>
+                            <SelectTrigger className="w-32 h-7 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-6 py-3 text-muted-foreground">{new Date(p.created_at).toLocaleDateString('en-LK')}</td>
+                        <td className="px-6 py-3 text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={resettingId === p.id}
+                            onClick={() => handleResetPassword(p)}
+                          >
+                            <KeyRound size={13} className="mr-1" />
+                            {resettingId === p.id ? 'Resetting...' : 'Reset Password'}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Create User Dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create User Account for Employee</DialogTitle>
+            <DialogDescription>
+              Select a registered employee to automatically use their registered email as their system username and send their portal credentials.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateUser} className="space-y-4">
+            {/* Registered Employee Picker */}
+            <div className="space-y-1.5">
+              <Label>Select Registered Employee</Label>
+              <Select value={createForm.employee_id} onValueChange={handleEmployeeSelect}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose an employee..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">+ Manual Entry (External / Non-employee account)</SelectItem>
+                  {employees.map(emp => {
+                    const alreadyLinked = profiles.some(p => p.id === emp.profile_id);
+                    return (
+                      <SelectItem key={emp.id} value={emp.id}>
+                        {emp.employee_id} — {emp.full_name} {emp.email ? `(${emp.email})` : '(No email)'} {alreadyLinked ? '✓ [Has Account]' : ''}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Employee Name */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>First Name <span className="text-destructive">*</span></Label>
+                <Input
+                  placeholder="Kumara"
+                  value={createForm.first_name}
+                  onChange={e => setCreateForm(f => ({ ...f, first_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Last Name <span className="text-destructive">*</span></Label>
+                <Input
+                  placeholder="Perera"
+                  value={createForm.last_name}
+                  onChange={e => setCreateForm(f => ({ ...f, last_name: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Email Address / Username */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Registered Email (System Username) <span className="text-destructive">*</span></Label>
+                {createForm.employee_id && createForm.employee_id !== 'manual' && createForm.email && (
+                  <span className="text-xs text-primary font-medium flex items-center gap-1">
+                    <CheckCircle2 size={12} /> From Employee Record
+                  </span>
+                )}
+              </div>
+              <Input
+                type="email"
+                placeholder="employee@esolpremiercampus.lk"
+                value={createForm.email}
+                onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                This exact email address will be the username used to sign in to the portal and will receive the login credentials and temporary password.
+              </p>
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-1.5">
+              <Label>Phone Number</Label>
+              <Input
+                placeholder="+94 77 123 4567"
+                value={createForm.phone}
+                onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))}
+              />
+            </div>
+
+            {/* Role */}
+            <div className="space-y-1.5">
+              <Label>System Role</Label>
+              <Select value={createForm.role} onValueChange={v => setCreateForm(f => ({ ...f, role: v as UserRole }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button>
+              <Button type="submit" disabled={creating}>{creating ? 'Creating Account...' : 'Create Account & Prepare Credentials'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Temporary Password & Employee Email Dialog */}
+      <Dialog open={tempCreds !== null} onOpenChange={open => { if (!open) setTempCreds(null); }}>
+        <DialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound size={18} className="text-primary" />
+              {tempCreds?.is_reset ? 'Password Reset for Employee' : 'Employee Login Credentials Ready'}
+            </DialogTitle>
+            <DialogDescription>
+              The employee account has been created with their registered email as username. Send them the portal link and temporary password below.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Credentials Card */}
+            <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-muted-foreground block mb-0.5">Employee Name</span>
+                  <span className="font-semibold text-foreground text-sm">{tempCreds?.name}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block mb-0.5">Portal URL</span>
+                  <a
+                    href={tempCreds?.portal_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-mono text-primary hover:underline text-xs inline-flex items-center gap-1"
+                  >
+                    {tempCreds?.portal_url} <ExternalLink size={11} />
+                  </a>
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-2.5">
+                <span className="text-muted-foreground block text-xs mb-0.5">Username (Registered Email)</span>
+                <span className="font-mono font-medium text-foreground text-sm">{tempCreds?.email}</span>
+              </div>
+
+              <div className="border-t border-border pt-2.5 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block text-xs mb-0.5">Temporary Password</span>
+                  <span className="font-mono font-bold text-primary text-base tracking-wider break-all">
+                    {tempCreds?.password}
+                  </span>
+                </div>
+                <Button type="button" variant="outline" size="sm" className="shrink-0 h-8" onClick={copyPassword}>
+                  {copiedPwd ? <Check size={14} className="mr-1 text-emerald-600" /> : <Copy size={14} className="mr-1" />}
+                  {copiedPwd ? 'Copied' : 'Copy Password'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Email Actions */}
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-3.5 space-y-2.5">
+              <div className="flex items-start gap-2">
+                <Mail size={16} className="text-primary shrink-0 mt-0.5" />
+                <div className="text-xs text-foreground">
+                  <p className="font-medium">Send Credentials to Employee ({tempCreds?.email})</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Click "Send Email to Employee" to open your mail app with the pre-filled username and password, or copy the formatted message.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="text-xs flex-1 min-w-[160px]"
+                  onClick={openMailClient}
+                >
+                  <Mail size={13} className="mr-1.5" /> Send Email to Employee
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs flex-1 min-w-[160px]"
+                  onClick={copyInvitationEmail}
+                >
+                  {copiedEmail ? <Check size={13} className="mr-1.5 text-emerald-600" /> : <Copy size={13} className="mr-1.5" />}
+                  {copiedEmail ? 'Email Copied!' : 'Copy Invitation Email'}
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground text-center">
+              The employee will be required to change this temporary password upon their first sign-in.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setTempCreds(null)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
+  );
+};
+
+export default UserManagementPage;
