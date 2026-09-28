@@ -23,6 +23,10 @@ export default {
             }
         },
         extend: {
+            fontFamily: {
+                sans: ['Inter', 'system-ui', 'sans-serif'],
+                display: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif']
+            },
             colors: {
                 border: 'hsl(var(--border))',
                 borderColor: {
@@ -64,6 +68,7 @@ export default {
                     blue: 'hsl(var(--education-blue))',
                     green: 'hsl(var(--education-green))'
                 },
+                gold: 'hsl(var(--gold))',
                 success: 'hsl(var(--success))',
                 warning: 'hsl(var(--warning))',
                 info: 'hsl(var(--info))',
@@ -98,7 +103,8 @@ export default {
             },
             boxShadow: {
                 card: 'var(--shadow-card)',
-                hover: 'var(--shadow-hover)'
+                hover: 'var(--shadow-hover)',
+                glow: 'var(--shadow-glow)'
             },
             keyframes: {
                 'accordion-down': {

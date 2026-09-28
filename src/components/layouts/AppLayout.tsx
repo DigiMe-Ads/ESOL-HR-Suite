@@ -1,111 +1,198 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import {
-  LayoutDashboard, Users, DollarSign, FileText, CalendarCheck, Settings,
-  LogOut, Menu, ChevronRight, UserCog, FileDown
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  LayoutDashboard, Users, Wallet, FileText, CalendarCheck, CalendarDays, Settings2,
+  LogOut, Menu, UserCog, Receipt, KeyRound, ChevronsUpDown, CalendarClock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const LOGO_URL = '/esol_logo.png';
 
+const ROLE_LABELS: Record<string, string> = {
+  admin: 'Administrator', hr_admin: 'HR User', manager: 'Manager', finance: 'Finance', staff: 'Staff',
+};
+
 interface NavItem {
   label: string;
   path: string;
-  icon: React.ReactNode;
+  icon: React.ElementType;
 }
 
 // Nav entries map to route configs; visibility = route permission
-const navItems: Array<NavItem & { routePath: string }> = [
-  { label: 'Dashboard', path: '/dashboard', routePath: '/dashboard', icon: <LayoutDashboard size={18} /> },
-  { label: 'Employees', path: '/employees', routePath: '/employees', icon: <Users size={18} /> },
-  { label: 'Add Salary', path: '/salary/new', routePath: '/salary/new', icon: <DollarSign size={18} /> },
-  { label: 'Salary Slips', path: '/salary-slips', routePath: '/salary-slips', icon: <FileDown size={18} /> },
-  { label: 'Salary History', path: '/salary-history', routePath: '/salary-history', icon: <FileText size={18} /> },
-  { label: 'Leave Requests', path: '/leave-requests', routePath: '/leave-requests', icon: <CalendarCheck size={18} /> },
-  { label: 'My Leaves', path: '/my-leaves', routePath: '/my-leaves', icon: <CalendarCheck size={18} /> },
-  { label: 'User Management', path: '/users', routePath: '/users', icon: <UserCog size={18} /> },
-  { label: 'Leave Config', path: '/leave-config', routePath: '/leave-config', icon: <Settings size={18} /> },
+const navGroups: Array<{ title: string; items: NavItem[] }> = [
+  { title: 'Overview', items: [
+    { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  ] },
+  { title: 'People', items: [
+    { label: 'Employees', path: '/employees', icon: Users },
+  ] },
+  { title: 'Payroll', items: [
+    { label: 'Add Salary', path: '/salary/new', icon: Wallet },
+    { label: 'Salary Slips', path: '/salary-slips', icon: Receipt },
+    { label: 'Salary History', path: '/salary-history', icon: FileText },
+  ] },
+  { title: 'Time Off', items: [
+    { label: 'Leave Requests', path: '/leave-requests', icon: CalendarCheck },
+    { label: 'My Leaves', path: '/my-leaves', icon: CalendarDays },
+    { label: 'Leave Config', path: '/leave-config', icon: Settings2 },
+  ] },
+  { title: 'Administration', items: [
+    { label: 'User Management', path: '/users', icon: UserCog },
+  ] },
 ];
 
-const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
+function initials(name?: string | null): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+
+// Resolve the current route's display name (supports :id params)
+function useRouteTitle(): string {
+  const { pathname } = useLocation();
+  const match = routeConfigs.find(r => {
+    const routeSegs = r.path.split('/');
+    const pathSegs = pathname.split('/');
+    if (routeSegs.length !== pathSegs.length) return false;
+    return routeSegs.every((seg, i) => seg.startsWith(':') || seg === pathSegs[i]);
+  });
+  return match?.name ?? 'HR Platform';
+}
+
+const UserMenu: React.FC<{ variant: 'sidebar' | 'header' }> = ({ variant }) => {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const role = profile?.role ?? 'staff';
-
-  // Show "My Leaves" instead of "Leave Requests" for staff-like roles
-  const isReviewer = profile?.role === 'admin' || profile?.role === 'hr_admin' || profile?.role === 'manager';
-  const visibleItems = navItems.filter(item => {
-    if (item.path === '/my-leaves' && isReviewer) return false;
-    if (item.path === '/leave-requests' && !isReviewer) return false;
-    const cfg = routeConfigs.find(r => r.path === item.routePath);
-    return cfg ? hasRoutePermission(cfg, profile) : false;
-  });
+  const role = ROLE_LABELS[profile?.role ?? 'staff'] ?? 'Staff';
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/login');
   };
 
+  const avatar = (
+    <div className="w-9 h-9 rounded-full bg-gradient-primary flex items-center justify-center shrink-0 ring-2 ring-white/10 shadow-glow">
+      <span className="text-xs font-bold text-white tracking-wide">{initials(profile?.full_name)}</span>
+    </div>
+  );
+
   return (
-    <div className="flex flex-col h-full bg-sidebar">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
-        <img src={LOGO_URL} alt="ESOL" className="h-8 object-contain brightness-200" />
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {variant === 'sidebar' ? (
+          <button type="button" className="w-full flex items-center gap-3 rounded-xl p-2 text-left hover:bg-sidebar-accent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+            {avatar}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white truncate">{profile?.full_name ?? 'User'}</p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">{role}</p>
+            </div>
+            <ChevronsUpDown size={15} className="text-sidebar-foreground/40 shrink-0" />
+          </button>
+        ) : (
+          <button type="button" className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {avatar}
+          </button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align={variant === 'sidebar' ? 'start' : 'end'} side={variant === 'sidebar' ? 'top' : 'bottom'} className="w-60">
+        <DropdownMenuLabel className="font-normal">
+          <p className="text-sm font-semibold text-foreground truncate">{profile?.full_name ?? 'User'}</p>
+          <p className="text-xs text-muted-foreground truncate">{profile?.email}</p>
+          <span className="pill pill-info mt-2 normal-case">{role}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate('/change-password')} className="cursor-pointer">
+          <KeyRound size={15} /> Change password
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={handleSignOut} className="cursor-pointer text-rose-600 focus:text-rose-700 focus:bg-rose-50">
+          <LogOut size={15} /> Sign out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
+  const { profile } = useAuth();
+
+  // Show "My Leaves" instead of "Leave Requests" for staff-like roles
+  const isReviewer = profile?.role === 'admin' || profile?.role === 'hr_admin' || profile?.role === 'manager';
+  const isVisible = (item: NavItem) => {
+    if (item.path === '/my-leaves' && isReviewer) return false;
+    if (item.path === '/leave-requests' && !isReviewer) return false;
+    const cfg = routeConfigs.find(r => r.path === item.path);
+    return cfg ? hasRoutePermission(cfg, profile) : false;
+  };
+  const groups = navGroups
+    .map(g => ({ ...g, items: g.items.filter(isVisible) }))
+    .filter(g => g.items.length > 0);
+
+  return (
+    <div className="relative flex flex-col h-full bg-sidebar overflow-hidden">
+      {/* Ambient glow */}
+      <div className="pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-primary/25 blur-3xl" />
+
+      {/* Brand */}
+      <div className="relative flex items-center gap-3 px-5 h-16 shrink-0">
+        <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center shadow-lg shrink-0 p-1">
+          <img src={LOGO_URL} alt="ESOL" className="h-full w-full object-contain" />
+        </div>
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-sidebar-foreground/90 leading-tight truncate">ESOL Premier</p>
-          <p className="text-xs text-sidebar-foreground/50 truncate">Campus HR</p>
+          <p className="font-display text-sm font-bold text-white leading-tight truncate">ESOL Premier</p>
+          <p className="text-[11px] text-sidebar-foreground/60 truncate">Campus HR Suite</p>
         </div>
       </div>
 
-      {/* Nav items */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        <p className="section-label px-2 mb-2 text-sidebar-foreground/40">Navigation</p>
-        {visibleItems.map(item => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            onClick={onNavigate}
-            className={({ isActive }) => cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors duration-100',
-              isActive
-                ? 'bg-sidebar-accent text-white font-medium'
-                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-            )}
-          >
-            <span className="shrink-0">{item.icon}</span>
-            <span className="flex-1 min-w-0 truncate">{item.label}</span>
-            <ChevronRight size={14} className="shrink-0 opacity-40" />
-          </NavLink>
+      {/* Nav */}
+      <nav className="relative flex-1 px-3 py-3 space-y-5 overflow-y-auto">
+        {groups.map(group => (
+          <div key={group.title}>
+            <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/35">{group.title}</p>
+            <div className="space-y-0.5">
+              {group.items.map(item => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.path === '/my-leaves'}
+                    onClick={onNavigate}
+                    className={({ isActive }) => cn(
+                      'group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
+                      isActive
+                        ? 'bg-gradient-to-r from-primary/25 to-primary/5 text-white font-medium'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-white'
+                    )}
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <span className={cn(
+                          'absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-sidebar-primary transition-opacity',
+                          isActive ? 'opacity-100' : 'opacity-0'
+                        )} />
+                        <Icon size={17} className={cn('shrink-0 transition-colors', isActive ? 'text-sidebar-primary' : 'text-sidebar-foreground/50 group-hover:text-white')} />
+                        <span className="flex-1 min-w-0 truncate">{item.label}</span>
+                      </>
+                    )}
+                  </NavLink>
+                );
+              })}
+            </div>
+          </div>
         ))}
       </nav>
 
-      {/* User info + sign out */}
-      <div className="border-t border-sidebar-border px-3 py-4">
-        <div className="flex items-center gap-3 px-2 mb-3">
-          <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center shrink-0">
-            <span className="text-xs font-semibold text-accent">
-              {profile?.full_name?.[0]?.toUpperCase() ?? '?'}
-            </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">
-              {({ admin: 'Administrator', hr_admin: 'HR User', manager: 'Manager', finance: 'Finance', staff: 'Staff' } as const)[role] ?? 'Staff'}
-            </p>
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40"
-          onClick={handleSignOut}
-        >
-          <LogOut size={15} />
-          Sign Out
-        </Button>
+      {/* User */}
+      <div className="relative border-t border-sidebar-border p-3">
+        <UserMenu variant="sidebar" />
       </div>
     </div>
   );
@@ -113,33 +200,46 @@ const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const title = useRouteTitle();
+  const today = new Date().toLocaleDateString('en-LK', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
   return (
     <div className="flex min-h-screen w-full bg-background">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-border">
+      <aside className="hidden md:flex flex-col w-[264px] shrink-0 sticky top-0 h-screen">
         <NavContent />
       </aside>
 
-      {/* Mobile header + Sheet */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-x-hidden">
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b border-border bg-card shrink-0">
+      <div className="flex-1 min-w-0 flex flex-col overflow-x-hidden bg-app">
+        {/* Top bar */}
+        <header className="no-print sticky top-0 z-30 flex items-center gap-3 h-16 px-4 md:px-8 border-b border-border/70 bg-background/75 backdrop-blur-xl shrink-0">
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="shrink-0">
+              <Button variant="ghost" size="icon" className="md:hidden shrink-0 -ml-2">
                 <Menu size={20} />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-64 bg-sidebar border-sidebar-border">
+            <SheetContent side="left" className="p-0 w-[264px] bg-sidebar border-sidebar-border">
               <NavContent onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
-          <img src={LOGO_URL} alt="ESOL" className="h-7 object-contain" />
-          <span className="text-sm font-semibold text-foreground truncate">HR Platform</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground hidden sm:block">ESOL Premier Campus</p>
+            <p className="font-display text-[15px] font-semibold text-foreground truncate leading-tight">{title}</p>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+            <CalendarClock size={14} className="text-primary" />
+            {today}
+          </div>
+          <div className="md:hidden">
+            <UserMenu variant="header" />
+          </div>
         </header>
 
         <main className="flex-1 min-w-0 overflow-x-hidden">
-          {children}
+          <div className="mx-auto w-full max-w-[1400px] animate-fade-in">
+            {children}
+          </div>
         </main>
       </div>
     </div>

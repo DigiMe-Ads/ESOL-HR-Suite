@@ -29,41 +29,56 @@ export async function clearMustChangePassword(userId: string): Promise<void> {
   await supabase.from('profiles').update({ must_change_password: false }).eq('id', userId);
 }
 
-// =================== USER ACCOUNT ADMIN (Edge Function: user-admin) ===================
+// =================== USER ACCOUNT ADMIN (DB RPCs — see migration 00015) ===================
 export interface CreateUserResult { user_id: string; temp_password: string; email_sent: boolean; }
 export interface ResetPasswordResult { temp_password: string; email_sent: boolean; }
 
-async function invokeUserAdmin<T>(body: Record<string, unknown>): Promise<{ data: T | null; error: string | null }> {
-  const { data, error } = await supabase.functions.invoke<T>('user-admin', { body });
-  if (error) {
-    let message = error.message;
-    try {
-      const text = await error.context?.text();
-      if (text) message = JSON.parse(text).error ?? text;
-    } catch { /* keep default message */ }
-    return { data: null, error: message };
-  }
+async function invokeAdminRpc<T>(fn: string, args: Record<string, unknown>): Promise<{ data: T | null; error: string | null }> {
+  const { data, error } = await supabase.rpc(fn, args);
+  if (error) return { data: null, error: error.message };
   return { data: data as T, error: null };
 }
 
 export function createUserAccount(params: {
   first_name: string; last_name: string; email: string; phone?: string; role: UserRole; permissions: Permission[];
 }): Promise<{ data: CreateUserResult | null; error: string | null }> {
-  return invokeUserAdmin<CreateUserResult>({ action: 'create', ...params });
+  return invokeAdminRpc<CreateUserResult>('admin_create_user', {
+    p_first_name: params.first_name,
+    p_last_name: params.last_name,
+    p_email: params.email,
+    p_phone: params.phone ?? null,
+    p_role: params.role,
+    p_permissions: params.permissions,
+  });
 }
 
 export function updateUserPermissions(params: {
   user_id: string; permissions: Permission[]; role?: UserRole;
 }): Promise<{ data: { ok: boolean } | null; error: string | null }> {
-  return invokeUserAdmin<{ ok: boolean }>({ action: 'update_permissions', ...params });
+  return invokeAdminRpc<{ ok: boolean }>('admin_update_permissions', {
+    p_user_id: params.user_id,
+    p_permissions: params.permissions,
+    p_role: params.role ?? null,
+  });
 }
 
 export function resetUserPassword(userId: string): Promise<{ data: ResetPasswordResult | null; error: string | null }> {
-  return invokeUserAdmin<ResetPasswordResult>({ action: 'reset_password', user_id: userId });
+  return invokeAdminRpc<ResetPasswordResult>('admin_reset_password', { p_user_id: userId });
 }
 
 export function setUserBan(userId: string, banned: boolean): Promise<{ data: { ok: boolean } | null; error: string | null }> {
-  return invokeUserAdmin<{ ok: boolean }>({ action: 'set_ban', user_id: userId, banned });
+  return invokeAdminRpc<{ ok: boolean }>('admin_set_ban', { p_user_id: userId, p_banned: banned });
+}
+
+// =================== SELF-SERVICE PASSWORD ===================
+/** Reset a password with a one-time reset code — no confirmation email involved. */
+export async function resetPasswordWithCode(email: string, code: string, newPassword: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('reset_password_with_code', {
+    p_email: email, p_code: code, p_new_password: newPassword,
+  });
+  if (error) return error.message;
+  const result = data as { ok: boolean; error?: string } | null;
+  return result?.ok ? null : (result?.error ?? 'Invalid or expired reset code');
 }
 
 // =================== EMPLOYEES ===================

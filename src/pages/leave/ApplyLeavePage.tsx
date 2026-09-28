@@ -115,7 +115,7 @@ const ApplyLeavePage: React.FC = () => {
         </div>
 
         {balances && (
-          <Card className="border-border shadow-card">
+          <Card className="overflow-hidden">
             <CardContent className="pt-5">
               <p className="section-label mb-3">Your Entitlement Balances (This Year)</p>
               <div className="space-y-2">
@@ -136,7 +136,7 @@ const ApplyLeavePage: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit}>
-          <Card className="border-border shadow-card">
+          <Card className="overflow-hidden">
             <CardContent className="pt-6 space-y-4">
               <div className="space-y-1.5">
                 <Label>Leave Type <span className="text-destructive">*</span></Label>

@@ -11,9 +11,9 @@ import { ArrowLeft, Pencil, FileText, CalendarCheck, UserMinus, UserCheck } from
 import { formatLKR } from '@/lib/salaryCalc';
 
 const statusColor: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
+  pending: 'pill pill-warning',
+  approved: 'pill pill-success',
+  rejected: 'pill pill-danger',
 };
 
 const EmployeeDetailPage: React.FC = () => {
@@ -63,15 +63,15 @@ const EmployeeDetailPage: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="p-6 md:p-8 space-y-6 max-w-4xl">
+      <div className="p-6 md:p-8 space-y-6 max-w-6xl">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate('/employees')}><ArrowLeft size={18} /></Button>
             <div>
               <h1 className="text-xl font-semibold text-foreground flex items-center gap-2 flex-wrap">
                 {employee.full_name}
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
-                  employee.employment_status === 'resigned' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                <span className={`${
+                  employee.employment_status === 'resigned' ? 'pill pill-danger' : 'pill pill-success'
                 }`}>{employee.employment_status}</span>
               </h1>
               <p className="text-sm text-muted-foreground">{employee.employee_id} · {employee.designation}</p>
@@ -94,7 +94,7 @@ const EmployeeDetailPage: React.FC = () => {
         </div>
 
         {/* Employee Info */}
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3"><CardTitle className="text-base">Employee Information</CardTitle></CardHeader>
           <CardContent>
             <InfoRow label="Employee ID" value={employee.employee_id} />
@@ -113,7 +113,7 @@ const EmployeeDetailPage: React.FC = () => {
         </Card>
 
         {/* Salary History */}
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <FileText size={16} className="text-primary" /> Salary History
@@ -121,14 +121,14 @@ const EmployeeDetailPage: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
+              <table className="data-table w-full text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Month</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Period</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Gross</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Net Pay</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Slip</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-6 py-3">Month</th>
+                    <th className="text-left px-6 py-3">Period</th>
+                    <th className="text-right px-6 py-3">Gross</th>
+                    <th className="text-right px-6 py-3">Net Pay</th>
+                    <th className="text-right px-6 py-3">Slip</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -154,7 +154,7 @@ const EmployeeDetailPage: React.FC = () => {
         </Card>
 
         {/* Leave History */}
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <CalendarCheck size={16} className="text-primary" /> Leave History
@@ -162,13 +162,13 @@ const EmployeeDetailPage: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
+              <table className="data-table w-full text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Type</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Dates</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Days</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Status</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-6 py-3">Type</th>
+                    <th className="text-left px-6 py-3">Dates</th>
+                    <th className="text-left px-6 py-3">Days</th>
+                    <th className="text-left px-6 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -180,7 +180,7 @@ const EmployeeDetailPage: React.FC = () => {
                       <td className="px-6 py-3 text-muted-foreground">{l.start_date} to {l.end_date}</td>
                       <td className="px-6 py-3">{l.total_days}</td>
                       <td className="px-6 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${statusColor[l.status]}`}>{l.status}</span>
+                        <span className={`${statusColor[l.status]}`}>{l.status}</span>
                       </td>
                     </tr>
                   ))}

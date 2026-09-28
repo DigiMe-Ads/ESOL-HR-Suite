@@ -1,121 +1,165 @@
 /* stylelint-disable */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ESOL Premier Campus HR Platform — Vignelli Grid × Institutional Navy */
+/* ESOL Premier Campus HR Platform — modern indigo × slate */
 
 @layer base {
   :root {
-    --radius: 0.375rem;
+    --radius: 0.75rem;
 
-    /* Core palette — #1B3B8A navy primary, #B8860B gold accent */
-    --background: 0 0% 100%;         /* #FFFFFF */
-    --foreground: 220 60% 12%;       /* #0F1A2E */
-    --card: 0 0% 100%;               /* #FFFFFF */
-    --card-foreground: 220 60% 12%;
+    /* Neutrals — cool slate surfaces */
+    --background: 225 30% 97.5%;     /* #F6F7FB */
+    --foreground: 224 35% 12%;       /* #141B2D */
+    --card: 0 0% 100%;
+    --card-foreground: 224 35% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 60% 12%;
-    --primary: 224 67% 32%;          /* #1B3B8A */
+    --popover-foreground: 224 35% 12%;
+
+    /* Brand — vivid indigo with a navy undertone */
+    --primary: 234 70% 55%;          /* #4557E0 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 40% 36%;        /* #2C4F7C */
-    --secondary-foreground: 0 0% 100%;
-    --muted: 220 20% 93%;            /* #EDF0F5 */
-    --muted-foreground: 220 15% 45%;
-    --accent: 38 82% 38%;            /* #B8860B gold */
-    --accent-foreground: 220 60% 12%;
+    --secondary: 228 33% 95%;        /* soft indigo-grey surface */
+    --secondary-foreground: 224 35% 18%;
+    --muted: 225 25% 95.5%;
+    --muted-foreground: 222 13% 46%;
+    --accent: 234 85% 96%;           /* light indigo tint for hovers */
+    --accent-foreground: 234 60% 40%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 20% 82%;           /* #D0D6E2 */
-    --input: 220 20% 82%;
-    --ring: 224 67% 32%;
+    --border: 225 20% 90%;
+    --input: 225 20% 87%;
+    --ring: 234 70% 55%;
 
-    /* Sidebar — deep navy */
-    --sidebar-background: 224 67% 20%;   /* darker navy */
-    --sidebar-foreground: 220 30% 85%;
-    --sidebar-primary: 224 67% 32%;
+    /* Brand gold — kept from the ESOL identity for highlights */
+    --gold: 38 82% 45%;
+
+    /* Sidebar — deep ink */
+    --sidebar-background: 228 38% 11%;   /* #111728 */
+    --sidebar-foreground: 225 20% 78%;
+    --sidebar-primary: 234 70% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 224 67% 28%;
+    --sidebar-accent: 228 30% 17%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 224 50% 25%;
-    --sidebar-ring: 38 82% 38%;
+    --sidebar-border: 228 28% 18%;
+    --sidebar-ring: 234 70% 60%;
 
-    --chart-1: 224 67% 32%;
-    --chart-2: 38 82% 38%;
-    --chart-3: 173 58% 39%;
-    --chart-4: 280 45% 50%;
+    --chart-1: 234 70% 55%;
+    --chart-2: 38 82% 45%;
+    --chart-3: 168 64% 38%;
+    --chart-4: 280 55% 55%;
     --chart-5: 0 72% 51%;
 
-    --success: 142 71% 35%;
-    --warning: 38 92% 45%;
-    --info: 210 79% 46%;
+    --success: 152 62% 36%;
+    --warning: 36 92% 44%;
+    --info: 205 85% 48%;
 
-    --shadow-card: 0 1px 3px 0 rgb(15 26 46 / 0.08), 0 1px 2px -1px rgb(15 26 46 / 0.06);
-    --shadow-hover: 0 4px 12px 0 rgb(15 26 46 / 0.12);
-    --gradient-primary: linear-gradient(135deg, hsl(224 67% 32%) 0%, hsl(220 40% 36%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 20% 98%) 100%);
-    --gradient-background: none;
+    --shadow-card: 0 1px 2px 0 rgb(20 27 45 / 0.04), 0 1px 3px 0 rgb(20 27 45 / 0.05);
+    --shadow-hover: 0 10px 30px -12px rgb(20 27 45 / 0.18), 0 2px 6px -2px rgb(20 27 45 / 0.06);
+    --shadow-glow: 0 8px 24px -8px hsl(234 70% 55% / 0.45);
+    --gradient-primary: linear-gradient(135deg, hsl(234 70% 55%) 0%, hsl(252 68% 58%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(225 30% 98.5%) 100%);
+    --gradient-background: radial-gradient(1200px 600px at 100% -10%, hsl(234 85% 96%) 0%, transparent 60%);
 
-    --education-blue: 224 67% 32%;
-    --education-green: 142 71% 35%;
+    --education-blue: 234 70% 55%;
+    --education-green: 152 62% 36%;
   }
 
   .dark {
-    --background: 222 40% 10%;
-    --foreground: 220 20% 92%;
-    --card: 222 40% 13%;
-    --card-foreground: 220 20% 92%;
-    --popover: 222 40% 13%;
-    --popover-foreground: 220 20% 92%;
-    --primary: 224 60% 55%;
+    --background: 228 35% 8%;
+    --foreground: 225 25% 93%;
+    --card: 228 32% 11%;
+    --card-foreground: 225 25% 93%;
+    --popover: 228 32% 11%;
+    --popover-foreground: 225 25% 93%;
+    --primary: 234 80% 66%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 40% 30%;
-    --secondary-foreground: 220 20% 92%;
-    --muted: 222 30% 18%;
-    --muted-foreground: 220 15% 60%;
-    --accent: 38 75% 50%;
-    --accent-foreground: 220 60% 12%;
-    --destructive: 0 62% 42%;
+    --secondary: 228 25% 17%;
+    --secondary-foreground: 225 25% 93%;
+    --muted: 228 25% 15%;
+    --muted-foreground: 225 14% 62%;
+    --accent: 234 40% 20%;
+    --accent-foreground: 234 90% 85%;
+    --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 222 30% 22%;
-    --input: 222 30% 22%;
-    --ring: 224 60% 55%;
-    --sidebar-background: 222 45% 8%;
-    --sidebar-foreground: 220 20% 80%;
-    --sidebar-primary: 224 60% 55%;
+    --border: 228 22% 19%;
+    --input: 228 22% 22%;
+    --ring: 234 80% 66%;
+    --sidebar-background: 228 38% 6%;
+    --sidebar-foreground: 225 20% 78%;
+    --sidebar-primary: 234 80% 66%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 40% 14%;
-    --sidebar-accent-foreground: 220 20% 90%;
-    --sidebar-border: 222 35% 15%;
-    --sidebar-ring: 38 75% 50%;
+    --sidebar-accent: 228 30% 13%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 228 28% 13%;
+    --sidebar-ring: 234 80% 66%;
   }
 }
 
 @layer base {
   * { @apply border-border; }
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
-    font-size: 16px;
-    line-height: 1.5;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    font-feature-settings: 'cv11', 'ss01';
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Inter', sans-serif;
-    font-weight: 600;
-    line-height: 1.25;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
   }
   * { scrollbar-width: thin; scrollbar-color: hsl(var(--border)) transparent; }
+  ::selection { background: hsl(var(--primary) / 0.18); }
 }
 
-/* Editorial section label style */
-.section-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: hsl(var(--muted-foreground));
+@layer components {
+  /* Editorial section label style */
+  .section-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Status pills — soft tinted background + inset ring */
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset capitalize;
+  }
+  .pill::before {
+    content: '';
+    @apply h-1.5 w-1.5 rounded-full bg-current opacity-80;
+  }
+  .pill-success { @apply bg-emerald-50 text-emerald-700 ring-emerald-600/20; }
+  .pill-danger  { @apply bg-rose-50 text-rose-700 ring-rose-600/20; }
+  .pill-warning { @apply bg-amber-50 text-amber-700 ring-amber-600/25; }
+  .pill-info    { @apply bg-indigo-50 text-indigo-700 ring-indigo-600/20; }
+
+  /* Data tables inside cards */
+  .data-table thead tr { @apply border-b border-border bg-muted/60; }
+  .data-table thead th {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-muted-foreground;
+  }
+  .data-table tbody tr { @apply border-b border-border/70 transition-colors last:border-0 hover:bg-accent/40; }
+
+  /* Page title block */
+  .page-title { @apply text-2xl md:text-[1.75rem] font-bold tracking-tight text-foreground; }
+  .page-subtitle { @apply text-sm text-muted-foreground mt-1; }
+
+  .bg-app { background-image: var(--gradient-background); background-repeat: no-repeat; }
+  .text-gradient {
+    background-image: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }
 
 /* Print styles — clean A4 salary slip */

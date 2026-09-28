@@ -63,15 +63,15 @@ const EmployeeListPage: React.FC = () => {
       <div className="p-6 md:p-8 space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl md:text-2xl font-semibold text-foreground">Employees</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Manage all employee records</p>
+            <h1 className="page-title">Employees</h1>
+            <p className="page-subtitle">Manage all employee records</p>
           </div>
           <Button onClick={() => navigate('/employees/new')} className="shrink-0">
             <Plus size={16} className="mr-1.5" /> Add Employee
           </Button>
         </div>
 
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3">
             <div className="relative flex-1 max-w-sm min-w-0">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -98,15 +98,15 @@ const EmployeeListPage: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
+              <table className="data-table w-full text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Employee ID</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Name</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Designation</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Status</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Commenced</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Actions</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-6 py-3">Employee ID</th>
+                    <th className="text-left px-6 py-3">Name</th>
+                    <th className="text-left px-6 py-3">Designation</th>
+                    <th className="text-left px-6 py-3">Status</th>
+                    <th className="text-left px-6 py-3">Commenced</th>
+                    <th className="text-right px-6 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -126,10 +126,10 @@ const EmployeeListPage: React.FC = () => {
                       <td className="px-6 py-3 font-medium text-foreground">{emp.full_name}</td>
                       <td className="px-6 py-3 text-muted-foreground">{emp.designation}</td>
                       <td className="px-6 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
+                        <span className={`${
                           emp.employment_status === 'resigned'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-green-100 text-green-800'
+                            ? 'pill pill-danger'
+                            : 'pill pill-success'
                         }`}>
                           {emp.employment_status}
                         </span>

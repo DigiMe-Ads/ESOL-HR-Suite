@@ -299,8 +299,8 @@ No 179, High Level Road, Pannipitiya`;
       <div className="p-6 md:p-8 space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl md:text-2xl font-semibold text-foreground">User Management</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <h1 className="page-title">User Management</h1>
+            <p className="page-subtitle">
               Create accounts, tick the module access for each user, and issue login credentials
             </p>
           </div>
@@ -309,56 +309,70 @@ No 179, High Level Road, Pannipitiya`;
           </Button>
         </div>
 
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
+              <table className="data-table w-full text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Name</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Email (Username)</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Role</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Module Access</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Joined</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Actions</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-6 py-3">Name</th>
+                    <th className="text-left px-6 py-3">Email (Username)</th>
+                    <th className="text-left px-6 py-3">Role</th>
+                    <th className="text-left px-6 py-3">Module Access</th>
+                    <th className="text-right px-6 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     [...Array(3)].map((_, i) => (
                       <tr key={i} className="border-b border-border">
-                        {[...Array(6)].map((_, j) => (
+                        {[...Array(5)].map((_, j) => (
                           <td key={j} className="px-6 py-4"><div className="h-4 bg-muted rounded animate-pulse w-28" /></td>
                         ))}
                       </tr>
                     ))
                   ) : profiles.length === 0 ? (
-                    <tr><td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">No users found.</td></tr>
+                    <tr><td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">No users found.</td></tr>
                   ) : profiles.map(p => {
                     const linkedEmp = getLinkedEmployee(p.id);
                     const isAdmin = p.role === 'admin';
                     return (
                       <tr key={p.id} className="border-b border-border hover:bg-muted/40 transition-colors">
-                        <td className="px-6 py-3 font-medium text-foreground">
-                          {p.full_name ?? '—'}
-                          {linkedEmp && <span className="block text-xs text-muted-foreground font-normal">{linkedEmp.employee_id} · {linkedEmp.designation}</span>}
-                          {p.must_change_password && (
-                            <span className="ml-1 text-xs text-amber-600 dark:text-amber-400 font-normal">(temporary password)</span>
-                          )}
+                        <td className="px-6 py-3.5 font-medium text-foreground">
+                          <div className="flex items-center gap-3">
+                            <span className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${isAdmin ? 'bg-gradient-primary text-white' : 'bg-accent text-primary'}`}>
+                              {(p.full_name ?? p.email ?? '?').split(/s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+                            </span>
+                            <div className="min-w-0">
+                              {p.full_name ?? '—'}
+                              {linkedEmp && <span className="block text-xs text-muted-foreground font-normal">{linkedEmp.employee_id} · {linkedEmp.designation}</span>}
+                              {p.must_change_password && (
+                                <span className="pill pill-warning mt-1 normal-case">Temporary password</span>
+                              )}
+                            </div>
+                          </div>
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground font-mono text-xs">{p.email ?? '—'}</td>
+                        <td className="px-6 py-3.5 text-muted-foreground">
+                          {p.email ?? '—'}
+                          <span className="block text-xs text-muted-foreground/70">Joined {new Date(p.created_at).toLocaleDateString('en-LK')}</span>
+                        </td>
                         <td className="px-6 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isAdmin ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${isAdmin ? 'bg-gradient-primary text-white shadow-glow' : 'bg-secondary text-secondary-foreground ring-1 ring-inset ring-border'}`}>
                             {isAdmin && <Lock size={10} />}
                             {roleLabel(p.role)}
                           </span>
                         </td>
                         <td className="px-6 py-3">
-                          <div className="flex flex-wrap gap-1 max-w-md">
-                            {(isAdmin ? ALL_PERMISSIONS : (p.permissions ?? [])).map(perm => {
+                          <div className="flex flex-wrap gap-1 min-w-[220px] max-w-[320px] whitespace-normal">
+                            {isAdmin && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+                                All modules
+                              </span>
+                            )}
+                            {(isAdmin ? [] : (p.permissions ?? [])).map(perm => {
                               const m = PERMISSION_MODULES.find(x => x.key === perm);
                               return m ? (
-                                <span key={perm} className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary">
+                                <span key={perm} className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-accent text-accent-foreground ring-1 ring-inset ring-primary/10">
                                   {m.label}
                                 </span>
                               ) : null;
@@ -368,26 +382,27 @@ No 179, High Level Road, Pannipitiya`;
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground">{new Date(p.created_at).toLocaleDateString('en-LK')}</td>
                         <td className="px-6 py-3 text-right">
                           <div className="flex justify-end gap-2">
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-7 text-xs"
+                              className="h-8 text-xs"
                               onClick={() => openEditPermissions(p)}
+                              title="Edit module access"
                             >
-                              <ShieldCheck size={13} className="mr-1" /> Access
+                              <ShieldCheck size={14} /> <span className="hidden 2xl:inline">Access</span>
                             </Button>
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-7 text-xs"
+                              className="h-8 text-xs"
                               disabled={resettingId === p.id}
                               onClick={() => handleResetPassword(p)}
+                              title="Reset password"
                             >
-                              <KeyRound size={13} className="mr-1" />
-                              {resettingId === p.id ? 'Resetting...' : 'Reset Password'}
+                              <KeyRound size={14} />
+                              <span className="hidden 2xl:inline">{resettingId === p.id ? 'Resetting...' : 'Reset password'}</span>
                             </Button>
                           </div>
                         </td>

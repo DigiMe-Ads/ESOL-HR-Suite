@@ -127,7 +127,7 @@ const EmployeeFormPage: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <Card className="border-border shadow-card">
+          <Card className="overflow-hidden">
             <CardHeader className="pb-4">
               <CardTitle className="text-sm section-label">1. Generic Information</CardTitle>
             </CardHeader>

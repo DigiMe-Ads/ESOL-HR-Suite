@@ -66,8 +66,8 @@ const SalaryHistoryPage: React.FC = () => {
       <div className="p-6 md:p-8 space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl md:text-2xl font-semibold text-foreground">Salary History</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">All payroll records</p>
+            <h1 className="page-title">Salary History</h1>
+            <p className="page-subtitle">All payroll records</p>
           </div>
           {hasRoutePermission(routeConfigs.find(r => r.path === '/salary/new')!, profile) && (
             <Button onClick={() => navigate('/salary/new')} className="shrink-0">
@@ -76,7 +76,7 @@ const SalaryHistoryPage: React.FC = () => {
           )}
         </div>
 
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap gap-3 items-center">
               <div className="relative flex-1 min-w-[160px] max-w-xs">
@@ -98,16 +98,16 @@ const SalaryHistoryPage: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
+              <table className="data-table w-full text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    {canManageAll && <th className="text-left px-6 py-3 font-semibold text-foreground">Employee</th>}
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Month</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Period</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Days</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Gross</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Net Pay</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Actions</th>
+                  <tr className="border-b border-border">
+                    {canManageAll && <th className="text-left px-6 py-3">Employee</th>}
+                    <th className="text-left px-6 py-3">Month</th>
+                    <th className="text-left px-6 py-3">Period</th>
+                    <th className="text-right px-6 py-3">Days</th>
+                    <th className="text-right px-6 py-3">Gross</th>
+                    <th className="text-right px-6 py-3">Net Pay</th>
+                    <th className="text-right px-6 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>

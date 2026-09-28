@@ -11,9 +11,9 @@ import { remainingDays, entitlementFor } from '@/lib/leavePolicy';
 import { Plus } from 'lucide-react';
 
 const statusColor: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
+  pending: 'pill pill-warning',
+  approved: 'pill pill-success',
+  rejected: 'pill pill-danger',
 };
 
 const BALANCE_ROWS: { type: 'annual' | 'casual' | 'sick' | 'maternity' | 'paternity'; label: string; note: string }[] = [
@@ -61,8 +61,8 @@ const MyLeavesPage: React.FC = () => {
       <div className="p-6 md:p-8 space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl md:text-2xl font-semibold text-foreground">My Leaves</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Your leave applications and history</p>
+            <h1 className="page-title">My Leaves</h1>
+            <p className="page-subtitle">Your leave applications and history</p>
           </div>
           <Button onClick={() => navigate('/my-leaves/apply')} className="shrink-0">
             <Plus size={16} className="mr-1.5" /> Apply Leave
@@ -70,7 +70,7 @@ const MyLeavesPage: React.FC = () => {
         </div>
 
         {balances && (
-          <Card className="border-border shadow-card">
+          <Card className="overflow-hidden">
             <CardHeader className="pb-3"><p className="section-label">Leave Entitlements — {new Date().getFullYear()}</p></CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-2">
@@ -88,7 +88,7 @@ const MyLeavesPage: React.FC = () => {
           </Card>
         )}
 
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -104,16 +104,16 @@ const MyLeavesPage: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
+              <table className="data-table w-full text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Type</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Start Date</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">End Date</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Days</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Reason</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Status</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Comment</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-6 py-3">Type</th>
+                    <th className="text-left px-6 py-3">Start Date</th>
+                    <th className="text-left px-6 py-3">End Date</th>
+                    <th className="text-right px-6 py-3">Days</th>
+                    <th className="text-left px-6 py-3">Reason</th>
+                    <th className="text-left px-6 py-3">Status</th>
+                    <th className="text-left px-6 py-3">Comment</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -135,7 +135,7 @@ const MyLeavesPage: React.FC = () => {
                       <td className="px-6 py-3 text-right">{l.total_days}</td>
                       <td className="px-6 py-3 text-muted-foreground max-w-[160px] truncate">{l.reason ?? '—'}</td>
                       <td className="px-6 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${statusColor[l.status]}`}>{l.status}</span>
+                        <span className={`${statusColor[l.status]}`}>{l.status}</span>
                       </td>
                       <td className="px-6 py-3 text-muted-foreground max-w-[160px] truncate">{l.review_comment ?? '—'}</td>
                     </tr>

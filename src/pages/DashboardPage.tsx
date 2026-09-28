@@ -7,7 +7,10 @@ import { Button } from '@/components/ui/button';
 import { getDashboardStats, getSalaryRecords, getLeaveRequests, getEmployeeByProfileId } from '@/db/api';
 import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import { formatLKR } from '@/lib/salaryCalc';
-import { Users, FileText, Clock, DollarSign, ChevronRight, TrendingUp, UserMinus } from 'lucide-react';
+import {
+  Users, FileText, Clock, DollarSign, ChevronRight, TrendingUp, UserMinus, UserPlus, Wallet,
+  CalendarCheck, CalendarDays, CalendarPlus, Receipt, UserCog, Inbox,
+} from 'lucide-react';
 
 interface Stats { totalEmployees: number; activeEmployees: number; resignedEmployees: number; pendingLeaves: number; totalSalaryRecords: number; }
 
@@ -59,16 +62,44 @@ const DashboardPage: React.FC = () => {
   const isReviewer = can('/leave-requests');
   const isSelfViewer = !isReviewer && can('/my-leaves');
 
-  const statusColor: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    approved: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
+  const statusPill: Record<string, string> = {
+    pending: 'pill-warning',
+    approved: 'pill-success',
+    rejected: 'pill-danger',
   };
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const statCards: Array<{ show: boolean; label: string; value: number; icon: React.ElementType; tone: string; hint: string }> = [
+    { show: role !== 'staff', label: 'Active Employees', value: stats.activeEmployees, icon: Users, tone: 'from-indigo-500 to-violet-500', hint: 'Currently on payroll' },
+    { show: role !== 'staff', label: 'Resigned', value: stats.resignedEmployees, icon: UserMinus, tone: 'from-rose-500 to-pink-500', hint: 'Records retained' },
+    { show: isReviewer || isSelfViewer, label: 'Pending Leaves', value: stats.pendingLeaves, icon: Clock, tone: 'from-amber-500 to-orange-500', hint: 'Awaiting review' },
+    { show: can('/salary-slips') || can('/salary-history'), label: 'Salary Records', value: stats.totalSalaryRecords, icon: TrendingUp, tone: 'from-emerald-500 to-teal-500', hint: 'Payroll entries' },
+  ];
+
+  const isManagerView = isReviewer || can('/employees/new') || can('/salary/new');
+  const quickActions: Array<{ show: boolean; label: string; desc: string; path: string; icon: React.ElementType }> = isManagerView ? [
+    { show: can('/employees/new'), label: 'Add employee', desc: 'Onboard a new team member', path: '/employees/new', icon: UserPlus },
+    { show: can('/salary/new'), label: 'Add salary entry', desc: 'Record a monthly payroll', path: '/salary/new', icon: Wallet },
+    { show: isReviewer, label: 'Review leaves', desc: 'Approve or reject requests', path: '/leave-requests', icon: CalendarCheck },
+    { show: can('/salary-slips'), label: 'Salary slips', desc: 'Download payslips', path: '/salary-slips', icon: Receipt },
+    { show: can('/users'), label: 'Manage users', desc: 'Access & permissions', path: '/users', icon: UserCog },
+  ] : [
+    { show: can('/my-leaves/apply'), label: 'Apply for leave', desc: 'Submit a new request', path: '/my-leaves/apply', icon: CalendarPlus },
+    { show: can('/salary-slips'), label: 'My salary slips', desc: 'View and download payslips', path: '/salary-slips', icon: Receipt },
+    { show: can('/salary-history'), label: 'Salary history', desc: 'Past payroll records', path: '/salary-history', icon: FileText },
+  ];
+  const visibleActions = quickActions.filter(a => a.show);
+  const primaryAction = visibleActions[0];
 
   if (loading) return (
     <AppLayout>
-      <div className="p-6 md:p-8 space-y-4">
-        {[...Array(3)].map((_, i) => <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />)}
+      <div className="p-6 md:p-8 space-y-6">
+        <div className="h-36 rounded-3xl bg-muted animate-pulse" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-28 rounded-2xl bg-muted animate-pulse" />)}
+        </div>
       </div>
     </AppLayout>
   );
@@ -76,96 +107,78 @@ const DashboardPage: React.FC = () => {
   return (
     <AppLayout>
       <div className="p-6 md:p-8 space-y-6">
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground text-balance">
-            Welcome back, {profile?.full_name?.split(' ')[0] ?? 'User'}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {new Date().toLocaleDateString('en-LK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-3xl bg-sidebar text-white p-6 md:p-8">
+          <div className="absolute -top-20 -right-10 h-64 w-64 rounded-full bg-primary/50 blur-3xl" />
+          <div className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-violet-500/30 blur-3xl" />
+          <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
+          <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <p className="text-sm text-white/60">
+                {new Date().toLocaleDateString('en-LK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+              <h1 className="mt-1 text-2xl md:text-3xl font-extrabold tracking-tight text-balance">
+                {greeting}, {profile?.full_name?.split(' ')[0] ?? 'there'}
+              </h1>
+              <p className="mt-2 text-sm text-white/65 max-w-lg">Here's what's happening across your HR workspace today.</p>
+            </div>
+            {primaryAction && (
+              <Button onClick={() => navigate(primaryAction.path)} className="bg-white text-slate-900 hover:bg-white/90 shadow-lg shrink-0 self-start md:self-auto">
+                <primaryAction.icon size={16} /> {primaryAction.label}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {role !== 'staff' && (
-            <>
-              <Card className="border-border shadow-card">
-                <CardContent className="p-5 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <Users size={22} className="text-primary" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {statCards.filter(c => c.show).map(({ label, value, icon: Icon, tone, hint }) => (
+            <Card key={label} className="group relative overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="section-label pt-1">{label}</p>
+                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${tone} flex items-center justify-center shadow-lg shrink-0`}>
+                    <Icon size={18} className="text-white" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="section-label">Active Employees</p>
-                    <p className="text-2xl font-bold text-foreground mt-0.5">{stats.activeEmployees}</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="border-border shadow-card">
-                <CardContent className="p-5 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
-                    <UserMinus size={22} className="text-red-700" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="section-label">Resigned</p>
-                    <p className="text-2xl font-bold text-foreground mt-0.5">{stats.resignedEmployees}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
-          {(isReviewer || isSelfViewer) && (
-          <Card className="border-border shadow-card">
-            <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center shrink-0">
-                <Clock size={22} className="text-yellow-700" />
-              </div>
-              <div className="min-w-0">
-                <p className="section-label">Pending Leaves</p>
-                <p className="text-2xl font-bold text-foreground mt-0.5">{stats.pendingLeaves}</p>
-              </div>
-            </CardContent>
-          </Card>
-          )}
-          {(can('/salary-slips') || can('/salary-history')) && (
-          <Card className="border-border shadow-card">
-            <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
-                <TrendingUp size={22} className="text-green-700" />
-              </div>
-              <div className="min-w-0">
-                <p className="section-label">Salary Records</p>
-                <p className="text-2xl font-bold text-foreground mt-0.5">{stats.totalSalaryRecords}</p>
-              </div>
-            </CardContent>
-          </Card>
-          )}
+                </div>
+                <p className="font-display text-3xl font-bold text-foreground -mt-1 tabular-nums">{value}</p>
+                <p className="text-xs text-muted-foreground mt-1">{hint}</p>
+              </CardContent>
+              <div className={`absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r ${tone} opacity-0 group-hover:opacity-100 transition-opacity`} />
+            </Card>
+          ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Payrolls */}
           {(can('/salary-slips') || can('/salary-history') || can('/salary/new')) && (
-          <Card className="border-border shadow-card">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <DollarSign size={16} className="text-primary" /> Recent Payroll
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base flex items-center gap-2.5">
+                <span className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center"><DollarSign size={16} className="text-primary" /></span>
+                Recent Payroll
               </CardTitle>
               {can('/salary-history') && (
-                <Button variant="ghost" size="sm" className="text-primary text-xs h-7" onClick={() => navigate('/salary-history')}>
-                  View All <ChevronRight size={14} />
+                <Button variant="ghost" size="sm" className="text-primary" onClick={() => navigate('/salary-history')}>
+                  View all <ChevronRight size={14} />
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="px-0 pb-4">
+            <CardContent className="px-3 pb-3">
               {recentPayrolls.length === 0 ? (
-                <p className="text-sm text-muted-foreground px-6">No payroll records yet.</p>
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Inbox size={28} className="text-muted-foreground/50 mb-2" />
+                  <p className="text-sm text-muted-foreground">No payroll records yet.</p>
+                </div>
               ) : (
-                <div className="divide-y divide-border">
+                <div className="space-y-1">
                   {recentPayrolls.map(p => (
-                    <div key={p.id} className="flex items-center justify-between px-6 py-3 hover:bg-muted/50 transition-colors">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{p.payroll_month}</p>
+                    <div key={p.id} className="flex items-center justify-between rounded-xl px-3 py-3 hover:bg-muted/70 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="h-9 w-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Receipt size={16} /></span>
+                        <p className="text-sm font-medium text-foreground truncate">{p.payroll_month}</p>
                       </div>
-                      <p className="text-sm font-semibold text-primary">{formatLKR(p.net_pay)}</p>
+                      <p className="text-sm font-semibold text-foreground tabular-nums">{formatLKR(p.net_pay)}</p>
                     </div>
                   ))}
                 </div>
@@ -176,36 +189,36 @@ const DashboardPage: React.FC = () => {
 
           {/* Recent Leave Requests */}
           {(isReviewer || isSelfViewer) && (
-          <Card className="border-border shadow-card">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText size={16} className="text-primary" /> {isReviewer ? 'Leave Requests' : 'My Leaves'}
+          <Card>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base flex items-center gap-2.5">
+                <span className="h-8 w-8 rounded-lg bg-accent flex items-center justify-center"><FileText size={16} className="text-primary" /></span>
+                {isReviewer ? 'Pending Leave Requests' : 'My Leaves'}
               </CardTitle>
-              {isReviewer && (
-                <Button variant="ghost" size="sm" className="text-primary text-xs h-7" onClick={() => navigate('/leave-requests')}>
-                  View All <ChevronRight size={14} />
-                </Button>
-              )}
-              {!isReviewer && can('/my-leaves') && (
-                <Button variant="ghost" size="sm" className="text-primary text-xs h-7" onClick={() => navigate('/my-leaves')}>
-                  View All <ChevronRight size={14} />
+              {(isReviewer || can('/my-leaves')) && (
+                <Button variant="ghost" size="sm" className="text-primary" onClick={() => navigate(isReviewer ? '/leave-requests' : '/my-leaves')}>
+                  View all <ChevronRight size={14} />
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="px-0 pb-4">
+            <CardContent className="px-3 pb-3">
               {recentLeaves.length === 0 ? (
-                <p className="text-sm text-muted-foreground px-6">No leave requests.</p>
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Inbox size={28} className="text-muted-foreground/50 mb-2" />
+                  <p className="text-sm text-muted-foreground">No leave requests.</p>
+                </div>
               ) : (
-                <div className="divide-y divide-border">
+                <div className="space-y-1">
                   {recentLeaves.map(l => (
-                    <div key={l.id} className="flex items-center justify-between px-6 py-3 hover:bg-muted/50 transition-colors">
-                      <div>
-                        <p className="text-sm font-medium text-foreground capitalize">{l.leave_type} Leave</p>
-                        <p className="text-xs text-muted-foreground">{l.start_date} · {l.total_days} day(s)</p>
+                    <div key={l.id} className="flex items-center justify-between rounded-xl px-3 py-3 hover:bg-muted/70 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="h-9 w-9 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0"><CalendarDays size={16} /></span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground capitalize">{l.leave_type} leave</p>
+                          <p className="text-xs text-muted-foreground">{l.start_date} · {l.total_days} day(s)</p>
+                        </div>
                       </div>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${statusColor[l.status]}`}>
-                        {l.status}
-                      </span>
+                      <span className={`pill ${statusPill[l.status] ?? 'pill-info'}`}>{l.status}</span>
                     </div>
                   ))}
                 </div>
@@ -216,30 +229,28 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Quick Actions */}
-        {(can('/employees/new') || can('/salary/new')) && (
-          <Card className="border-border shadow-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              {can('/employees/new') && <Button onClick={() => navigate('/employees/new')}>Add Employee</Button>}
-              {can('/salary/new') && <Button variant="secondary" onClick={() => navigate('/salary/new')}>Add Salary Entry</Button>}
-              {can('/users') && <Button variant="secondary" onClick={() => navigate('/users')}>Manage Users</Button>}
-              {isReviewer && <Button variant="secondary" onClick={() => navigate('/leave-requests')}>Review Leaves</Button>}
-              {can('/salary-slips') && <Button variant="secondary" onClick={() => navigate('/salary-slips')}>Salary Slips</Button>}
-            </CardContent>
-          </Card>
-        )}
-        {!isReviewer && (can('/my-leaves/apply') || can('/salary-history')) && (
-          <Card className="border-border shadow-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              {can('/my-leaves/apply') && <Button onClick={() => navigate('/my-leaves/apply')}>Apply for Leave</Button>}
-              {can('/salary-history') && <Button variant="secondary" onClick={() => navigate('/salary-history')}>View My Salary</Button>}
-            </CardContent>
-          </Card>
+        {visibleActions.length > 0 && (
+          <div>
+            <p className="section-label mb-3">Quick actions</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+              {visibleActions.map(({ label, desc, path, icon: Icon }) => (
+                <button
+                  key={path}
+                  type="button"
+                  onClick={() => navigate(path)}
+                  className="group flex items-center gap-3 rounded-2xl border border-border/80 bg-card p-4 text-left shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-hover"
+                >
+                  <span className="h-10 w-10 rounded-xl bg-accent flex items-center justify-center shrink-0 transition-colors group-hover:bg-primary">
+                    <Icon size={18} className="text-primary transition-colors group-hover:text-white" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-foreground">{label}</span>
+                    <span className="block text-xs text-muted-foreground truncate">{desc}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </AppLayout>

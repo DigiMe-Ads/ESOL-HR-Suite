@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { NumberStepper } from '@/components/ui/number-stepper';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { getLeaveTypeConfigs, updateLeaveTypeConfig } from '@/db/api';
 import type { LeaveTypeConfig } from '@/types/types';
 import { toast } from 'sonner';
@@ -36,8 +37,8 @@ const LeaveConfigPage: React.FC = () => {
     <AppLayout>
       <div className="p-6 md:p-8 space-y-6 max-w-2xl">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground">Leave Configuration</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Configure leave types and annual entitlements</p>
+          <h1 className="page-title">Leave Configuration</h1>
+          <p className="page-subtitle">Configure leave types and annual entitlements</p>
         </div>
 
         <Card className="border-border shadow-card bg-primary/[0.03]">
@@ -58,35 +59,36 @@ const LeaveConfigPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3"><CardTitle className="text-base">Leave Types & Entitlements (Reference)</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
               [...Array(4)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)
             ) : configs.map(c => (
-              <div key={c.id} className="flex items-center gap-4 p-4 border border-border rounded-lg">
+              <div key={c.id} className="flex flex-wrap items-center gap-4 p-4 border border-border rounded-xl transition-colors hover:border-primary/30 hover:bg-accent/30">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-foreground">{c.label}</p>
                   <p className="text-xs text-muted-foreground capitalize">{c.leave_type}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Days/Year</Label>
-                    <Input
-                      type="number" min="0" max="365"
+                <div className="flex items-end gap-5">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <Label className="text-xs text-muted-foreground">Days / year</Label>
+                    <NumberStepper
+                      min={0} max={365}
+                      aria-label={`${c.label} days per year`}
                       value={edits[c.id]?.annual_entitlement_days ?? c.annual_entitlement_days}
-                      onChange={e => setEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], annual_entitlement_days: parseInt(e.target.value) || 0 } }))}
-                      className="w-20 text-center"
+                      onChange={v => setEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], annual_entitlement_days: v } }))}
                     />
                   </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <Label className="text-xs">Active</Label>
-                    <input
-                      type="checkbox"
-                      checked={edits[c.id]?.is_active ?? c.is_active}
-                      onChange={e => setEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], is_active: e.target.checked } }))}
-                      className="w-5 h-5 accent-primary mt-1"
-                    />
+                  <div className="flex flex-col items-center gap-1.5">
+                    <Label className="text-xs text-muted-foreground">Active</Label>
+                    <div className="flex h-10 items-center">
+                      <Switch
+                        aria-label={`${c.label} active`}
+                        checked={edits[c.id]?.is_active ?? c.is_active}
+                        onCheckedChange={checked => setEdits(prev => ({ ...prev, [c.id]: { ...prev[c.id], is_active: checked } }))}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

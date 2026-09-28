@@ -15,9 +15,9 @@ import {
 } from '@/components/ui/dialog';
 
 const statusColor: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
+  pending: 'pill pill-warning',
+  approved: 'pill pill-success',
+  rejected: 'pill pill-danger',
 };
 
 const LeaveRequestsPage: React.FC = () => {
@@ -63,11 +63,11 @@ const LeaveRequestsPage: React.FC = () => {
     <AppLayout>
       <div className="p-6 md:p-8 space-y-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground">Leave Requests</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Review and manage employee leave applications</p>
+          <h1 className="page-title">Leave Requests</h1>
+          <p className="page-subtitle">Review and manage employee leave applications</p>
         </div>
 
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3">
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
@@ -81,16 +81,16 @@ const LeaveRequestsPage: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
+              <table className="data-table w-full text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Employee</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Type</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Dates</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Days</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Reason</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Status</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Actions</th>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-6 py-3">Employee</th>
+                    <th className="text-left px-6 py-3">Type</th>
+                    <th className="text-left px-6 py-3">Dates</th>
+                    <th className="text-right px-6 py-3">Days</th>
+                    <th className="text-left px-6 py-3">Reason</th>
+                    <th className="text-left px-6 py-3">Status</th>
+                    <th className="text-right px-6 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -117,7 +117,7 @@ const LeaveRequestsPage: React.FC = () => {
                         <td className="px-6 py-3 text-right">{l.total_days}</td>
                         <td className="px-6 py-3 text-muted-foreground max-w-[140px] truncate">{l.reason ?? '—'}</td>
                         <td className="px-6 py-3">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${statusColor[l.status]}`}>{l.status}</span>
+                          <span className={`${statusColor[l.status]}`}>{l.status}</span>
                         </td>
                         <td className="px-6 py-3">
                           <div className="flex items-center justify-end gap-1">

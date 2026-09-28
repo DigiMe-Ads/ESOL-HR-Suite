@@ -68,11 +68,11 @@ const SalarySlipsPage: React.FC = () => {
     <AppLayout>
       <div className="p-6 md:p-8 space-y-6">
         <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground">Salary Slips</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Generate and download official salary slips</p>
+          <h1 className="page-title">Salary Slips</h1>
+          <p className="page-subtitle">Generate and download official salary slips</p>
         </div>
 
-        <Card className="border-border shadow-card">
+        <Card className="overflow-hidden">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap gap-3 items-center">
               <div className="relative flex-1 min-w-[160px] max-w-xs">
@@ -94,15 +94,15 @@ const SalarySlipsPage: React.FC = () => {
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
+              <table className="data-table w-full text-sm whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    {canViewAll && <th className="text-left px-6 py-3 font-semibold text-foreground">Employee</th>}
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Month</th>
-                    <th className="text-left px-6 py-3 font-semibold text-foreground">Period</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Gross Pay</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Net Pay</th>
-                    <th className="text-right px-6 py-3 font-semibold text-foreground">Slip</th>
+                  <tr className="border-b border-border">
+                    {canViewAll && <th className="text-left px-6 py-3">Employee</th>}
+                    <th className="text-left px-6 py-3">Month</th>
+                    <th className="text-left px-6 py-3">Period</th>
+                    <th className="text-right px-6 py-3">Gross Pay</th>
+                    <th className="text-right px-6 py-3">Net Pay</th>
+                    <th className="text-right px-6 py-3">Slip</th>
                   </tr>
                 </thead>
                 <tbody>

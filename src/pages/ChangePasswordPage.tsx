@@ -2,91 +2,155 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
 import { clearMustChangePassword } from '@/db/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { getFirstPermittedPath } from '@/routes';
+import AppLayout from '@/components/layouts/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, Check, Loader2, ShieldCheck } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const LOGO_URL = '/esol_logo.png';
 
+const RULES = [
+  { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
+  { label: 'Contains a letter', test: (p: string) => /[A-Za-z]/.test(p) },
+  { label: 'Contains a number', test: (p: string) => /[0-9]/.test(p) },
+];
+
 const ChangePasswordPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, profile, refreshProfile } = useAuth();
+  // First login with a temporary password → standalone, no current password needed
+  const forced = profile?.must_change_password === true;
+
+  const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) { toast.error('Password must be at least 8 characters'); return; }
-    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-      toast.error('Password must contain at least one letter and one number');
-      return;
-    }
+    if (!RULES.every(r => r.test(password))) { toast.error('Password must be 8+ characters with at least one letter and one number'); return; }
     if (password !== confirm) { toast.error('Passwords do not match'); return; }
+    if (!forced && password === current) { toast.error('New password must be different from the current one'); return; }
     setLoading(true);
+
+    if (!forced) {
+      const { error: verifyErr } = await supabase.auth.signInWithPassword({ email: user?.email ?? '', password: current });
+      if (verifyErr) {
+        setLoading(false);
+        toast.error('Current password is incorrect');
+        return;
+      }
+    }
+
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {
       setLoading(false);
       toast.error(error.message);
       return;
     }
-    await clearMustChangePassword((await supabase.auth.getUser()).data.user!.id);
+    if (forced && user) {
+      await clearMustChangePassword(user.id);
+      await refreshProfile();
+    }
     setLoading(false);
+    setCurrent(''); setPassword(''); setConfirm('');
     toast.success('Password updated successfully');
-    navigate('/dashboard', { replace: true });
+    navigate(getFirstPermittedPath(profile ? { ...profile, must_change_password: false } : null), { replace: true });
   };
 
+  const form = (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {!forced && (
+        <div className="space-y-2">
+          <Label htmlFor="current-password">Current password</Label>
+          <Input id="current-password" type="password" placeholder="Enter your current password" value={current}
+            onChange={e => setCurrent(e.target.value)} autoComplete="current-password" disabled={loading} required className="h-11" />
+        </div>
+      )}
+      <div className="space-y-2">
+        <Label htmlFor="new-password">New password</Label>
+        <Input id="new-password" type="password" placeholder="Choose a strong password" value={password}
+          onChange={e => setPassword(e.target.value)} autoComplete="new-password" disabled={loading} required minLength={8} className="h-11" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="confirm-password">Confirm new password</Label>
+        <Input id="confirm-password" type="password" placeholder="Re-enter the new password" value={confirm}
+          onChange={e => setConfirm(e.target.value)} autoComplete="new-password" disabled={loading} required minLength={8} className="h-11" />
+      </div>
+      <ul className="grid gap-1.5 rounded-xl bg-muted/60 p-3.5">
+        {RULES.map(r => {
+          const ok = r.test(password);
+          return (
+            <li key={r.label} className={cn('flex items-center gap-2 text-xs transition-colors', ok ? 'text-emerald-700' : 'text-muted-foreground')}>
+              <span className={cn('flex h-4 w-4 items-center justify-center rounded-full transition-colors', ok ? 'bg-emerald-500 text-white' : 'bg-border')}>
+                {ok && <Check size={10} strokeWidth={3} />}
+              </span>
+              {r.label}
+            </li>
+          );
+        })}
+      </ul>
+      <Button type="submit" size="lg" className="w-full bg-gradient-primary" disabled={loading}>
+        {loading ? <><Loader2 className="animate-spin" /> Updating…</> : 'Update password'}
+      </Button>
+    </form>
+  );
+
+  if (forced) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background bg-app p-6">
+        <div className="w-full max-w-md animate-fade-in">
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className="h-14 w-14 rounded-2xl bg-white p-2 shadow-card border border-border mb-6">
+              <img src={LOGO_URL} alt="ESOL Premier Campus" className="h-full w-full object-contain" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">Set a new password</h1>
+            <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+              Your account uses a temporary password. Create your own password to continue.
+            </p>
+          </div>
+          <Card className="shadow-hover">
+            <CardContent className="p-6">{form}</CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-md shadow-card border-border">
-        <CardHeader className="pb-4 text-center">
-          <img src={LOGO_URL} alt="ESOL Premier Campus" className="h-12 object-contain mx-auto mb-4" />
-          <CardTitle className="text-xl text-foreground flex items-center justify-center gap-2">
-            <KeyRound size={18} className="text-primary" /> Set a New Password
-          </CardTitle>
-          <CardDescription>
-            Your account uses a temporary password. Please create your own password to continue.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                placeholder="Choose a strong password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                autoComplete="new-password"
-                disabled={loading}
-                required
-                minLength={8}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                placeholder="Re-enter the new password"
-                value={confirm}
-                onChange={e => setConfirm(e.target.value)}
-                autoComplete="new-password"
-                disabled={loading}
-                required
-                minLength={8}
-              />
-            </div>
-            <Button type="submit" className="w-full mt-2" disabled={loading}>
-              {loading ? 'Updating...' : 'Save New Password'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <AppLayout>
+      <div className="p-6 md:p-8 space-y-6">
+        <div>
+          <h1 className="page-title">Change password</h1>
+          <p className="page-subtitle">Update the password you use to sign in to the HR platform.</p>
+        </div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] max-w-4xl">
+          <Card>
+            <CardContent className="p-6">{form}</CardContent>
+          </Card>
+          <Card className="h-fit bg-gradient-to-br from-accent to-card">
+            <CardContent className="p-6 space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <ShieldCheck size={20} className="text-primary" />
+              </div>
+              <p className="font-display font-semibold">Keep your account safe</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Use a unique password you don't use anywhere else. Your other sessions stay signed in until they expire.
+              </p>
+              <p className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+                <KeyRound size={13} /> Signed in as <span className="font-medium text-foreground truncate">{user?.email}</span>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </AppLayout>
   );
 };
 

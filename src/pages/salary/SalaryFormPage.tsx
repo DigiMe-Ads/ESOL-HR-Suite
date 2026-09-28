@@ -232,7 +232,7 @@ const SalaryFormPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Left: Input */}
             <div className="space-y-4">
-              <Card className="border-border shadow-card">
+              <Card className="overflow-hidden">
                 <CardHeader className="pb-3"><CardTitle className="section-label">1. Generic Information</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
@@ -273,7 +273,7 @@ const SalaryFormPage: React.FC = () => {
                 </CardContent>
               </Card>
 
-              <Card className="border-border shadow-card">
+              <Card className="overflow-hidden">
                 <CardHeader className="pb-3">
                   <CardTitle className="section-label flex items-center justify-between">
                     <span>2. Salary & Allowances</span>
@@ -318,7 +318,7 @@ const SalaryFormPage: React.FC = () => {
                 </CardContent>
               </Card>
 
-              <Card className="border-border shadow-card">
+              <Card className="overflow-hidden">
                 <CardHeader className="pb-3">
                   <CardTitle className="section-label flex items-center gap-1.5">
                     <Wand2 size={13} className="text-accent" /> 3. Working Days
@@ -343,7 +343,7 @@ const SalaryFormPage: React.FC = () => {
                 </CardContent>
               </Card>
 
-              <Card className="border-border shadow-card">
+              <Card className="overflow-hidden">
                 <CardHeader className="pb-3"><CardTitle className="section-label">4. Deductions</CardTitle></CardHeader>
                 <CardContent>
                   <label className="flex items-center gap-3 min-h-12 -mx-2 px-2 cursor-pointer rounded-md hover:bg-muted/40 transition-colors">
