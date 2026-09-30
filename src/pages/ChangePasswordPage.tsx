@@ -12,8 +12,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { KeyRound, Check, Loader2, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BrandLogo } from '@/components/common/BrandLogo';
 
-const LOGO_URL = '/esol_logo.png';
 
 const RULES = [
   { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
@@ -107,9 +107,7 @@ const ChangePasswordPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-background bg-app p-6">
         <div className="w-full max-w-md animate-fade-in">
           <div className="flex flex-col items-center text-center mb-8">
-            <div className="h-14 w-14 rounded-2xl bg-white p-2 shadow-card border border-border mb-6">
-              <img src={LOGO_URL} alt="ESOL Premier Campus" className="h-full w-full object-contain" />
-            </div>
+            <BrandLogo className="w-[220px] mb-8" />
             <h1 className="text-2xl font-bold tracking-tight">Set a new password</h1>
             <p className="mt-2 text-sm text-muted-foreground max-w-sm">
               Your account uses a temporary password. Create your own password to continue.

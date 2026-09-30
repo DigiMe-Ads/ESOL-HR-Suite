@@ -13,8 +13,7 @@ import {
   LogOut, Menu, UserCog, Receipt, KeyRound, ChevronsUpDown, CalendarClock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-const LOGO_URL = '/esol_logo.png';
+import { BrandMark, CREST_URL } from '@/components/common/BrandLogo';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrator', hr_admin: 'HR User', manager: 'Manager', finance: 'Finance', staff: 'Staff',
@@ -137,18 +136,15 @@ const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
 
   return (
     <div className="relative flex flex-col h-full bg-sidebar overflow-hidden">
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-primary/25 blur-3xl" />
+      {/* Ambient globe glow + orbit arcs, echoing the logo's globe */}
+      <div className="pointer-events-none absolute -top-24 -left-16 h-64 w-64 rounded-full bg-brand-globe/30 blur-3xl" />
+      <div className="orbit-ring -top-28 -right-24 h-56 w-56 rotate-12" />
+      <div className="pointer-events-none absolute -bottom-20 -right-16 h-48 w-48 rounded-full bg-brand-sky/10 blur-3xl" />
 
       {/* Brand */}
-      <div className="relative flex items-center gap-3 px-5 h-16 shrink-0">
-        <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center shadow-lg shrink-0 p-1">
-          <img src={LOGO_URL} alt="ESOL" className="h-full w-full object-contain" />
-        </div>
-        <div className="min-w-0">
-          <p className="font-display text-sm font-bold text-white leading-tight truncate">ESOL Premier</p>
-          <p className="text-[11px] text-sidebar-foreground/60 truncate">Campus HR Suite</p>
-        </div>
+      <div className="relative px-5 pt-5 pb-4 shrink-0">
+        <BrandMark tone="dark" />
+        <div className="mt-4 h-px bg-gradient-to-r from-brand-sky/40 via-sidebar-border to-transparent" />
       </div>
 
       {/* Nav */}
@@ -168,7 +164,7 @@ const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
                     className={({ isActive }) => cn(
                       'group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                       isActive
-                        ? 'bg-gradient-to-r from-primary/25 to-primary/5 text-white font-medium'
+                        ? 'bg-gradient-to-r from-brand-globe/30 to-brand-globe/5 text-white font-medium'
                         : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-white'
                     )}
                   >
@@ -223,8 +219,9 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <NavContent onNavigate={() => setMobileOpen(false)} />
             </SheetContent>
           </Sheet>
+          <img src={CREST_URL} alt="ESOL" className="md:hidden h-8 w-8 object-contain shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground hidden sm:block">ESOL Premier Campus</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80 hidden sm:block">ESOL Premier Campus</p>
             <p className="font-display text-[15px] font-semibold text-foreground truncate leading-tight">{title}</p>
           </div>
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm">

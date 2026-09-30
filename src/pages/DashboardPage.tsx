@@ -72,10 +72,10 @@ const DashboardPage: React.FC = () => {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const statCards: Array<{ show: boolean; label: string; value: number; icon: React.ElementType; tone: string; hint: string }> = [
-    { show: role !== 'staff', label: 'Active Employees', value: stats.activeEmployees, icon: Users, tone: 'from-indigo-500 to-violet-500', hint: 'Currently on payroll' },
+    { show: role !== 'staff', label: 'Active Employees', value: stats.activeEmployees, icon: Users, tone: 'from-primary to-brand-globe', hint: 'Currently on payroll' },
     { show: role !== 'staff', label: 'Resigned', value: stats.resignedEmployees, icon: UserMinus, tone: 'from-rose-500 to-pink-500', hint: 'Records retained' },
     { show: isReviewer || isSelfViewer, label: 'Pending Leaves', value: stats.pendingLeaves, icon: Clock, tone: 'from-amber-500 to-orange-500', hint: 'Awaiting review' },
-    { show: can('/salary-slips') || can('/salary-history'), label: 'Salary Records', value: stats.totalSalaryRecords, icon: TrendingUp, tone: 'from-emerald-500 to-teal-500', hint: 'Payroll entries' },
+    { show: can('/salary-slips') || can('/salary-history'), label: 'Salary Records', value: stats.totalSalaryRecords, icon: TrendingUp, tone: 'from-brand-globe to-sky-400', hint: 'Payroll entries' },
   ];
 
   const isManagerView = isReviewer || can('/employees/new') || can('/salary/new');
@@ -109,8 +109,9 @@ const DashboardPage: React.FC = () => {
       <div className="p-6 md:p-8 space-y-6">
         {/* Hero */}
         <div className="relative overflow-hidden rounded-3xl bg-sidebar text-white p-6 md:p-8">
-          <div className="absolute -top-20 -right-10 h-64 w-64 rounded-full bg-primary/50 blur-3xl" />
-          <div className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-violet-500/30 blur-3xl" />
+          <div className="absolute -top-20 -right-10 h-64 w-64 rounded-full bg-brand-globe/45 blur-3xl" />
+          <div className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-primary/60 blur-3xl" />
+          <div className="orbit-ring -top-24 -right-16 h-72 w-72 rotate-[25deg]" />
           <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
           <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
@@ -123,7 +124,7 @@ const DashboardPage: React.FC = () => {
               <p className="mt-2 text-sm text-white/65 max-w-lg">Here's what's happening across your HR workspace today.</p>
             </div>
             {primaryAction && (
-              <Button onClick={() => navigate(primaryAction.path)} className="bg-white text-slate-900 hover:bg-white/90 shadow-lg shrink-0 self-start md:self-auto">
+              <Button onClick={() => navigate(primaryAction.path)} className="bg-white text-primary hover:bg-white/90 shadow-lg shrink-0 self-start md:self-auto">
                 <primaryAction.icon size={16} /> {primaryAction.label}
               </Button>
             )}

@@ -5,97 +5,102 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ESOL Premier Campus HR Platform — modern indigo × slate */
+/* ESOL Premier Campus HR Platform — palette taken from the ESOL crest & globe:
+   royal navy wordmark, deep globe indigo, sky-cyan highlights, crest silver. */
 
 @layer base {
   :root {
     --radius: 0.75rem;
 
-    /* Neutrals — cool slate surfaces */
-    --background: 225 30% 97.5%;     /* #F6F7FB */
-    --foreground: 224 35% 12%;       /* #141B2D */
+    /* Neutrals — cool, faintly blue surfaces */
+    --background: 222 33% 97.5%;     /* #F5F7FB */
+    --foreground: 232 40% 13%;       /* navy ink */
     --card: 0 0% 100%;
-    --card-foreground: 224 35% 12%;
+    --card-foreground: 232 40% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 224 35% 12%;
+    --popover-foreground: 232 40% 13%;
 
-    /* Brand — vivid indigo with a navy undertone */
-    --primary: 234 70% 55%;          /* #4557E0 */
+    /* Brand — ESOL royal navy (#283891) */
+    --primary: 231 57% 36%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 228 33% 95%;        /* soft indigo-grey surface */
-    --secondary-foreground: 224 35% 18%;
-    --muted: 225 25% 95.5%;
-    --muted-foreground: 222 13% 46%;
-    --accent: 234 85% 96%;           /* light indigo tint for hovers */
-    --accent-foreground: 234 60% 40%;
+    --secondary: 225 35% 95%;
+    --secondary-foreground: 232 40% 18%;
+    --muted: 222 28% 95.5%;
+    --muted-foreground: 225 14% 45%;
+    --accent: 214 80% 95.5%;         /* pale globe-blue tint for hovers */
+    --accent-foreground: 231 57% 36%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 225 20% 90%;
-    --input: 225 20% 87%;
-    --ring: 234 70% 55%;
+    --border: 222 22% 89%;
+    --input: 222 22% 86%;
+    --ring: 231 57% 36%;
 
-    /* Brand gold — kept from the ESOL identity for highlights */
-    --gold: 38 82% 45%;
+    /* Logo accents */
+    --globe: 211 78% 45%;            /* bright globe blue #1972CD */
+    --indigo: 245 50% 25%;           /* deep globe shadow #241F5E */
+    --sky: 196 82% 69%;              /* orbit highlight #6FCEF1 */
+    --silver: 220 3% 83%;            /* crest rim #D1D2D4 */
 
-    /* Sidebar — deep ink */
-    --sidebar-background: 228 38% 11%;   /* #111728 */
-    --sidebar-foreground: 225 20% 78%;
-    --sidebar-primary: 234 70% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 228 30% 17%;
+    /* Sidebar — deep globe navy */
+    --sidebar-background: 234 52% 14%;   /* #111736 */
+    --sidebar-foreground: 222 30% 80%;
+    --sidebar-primary: 196 82% 69%;      /* sky-cyan active state */
+    --sidebar-primary-foreground: 234 52% 14%;
+    --sidebar-accent: 232 42% 21%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 228 28% 18%;
-    --sidebar-ring: 234 70% 60%;
+    --sidebar-border: 232 38% 22%;
+    --sidebar-ring: 196 82% 69%;
 
-    --chart-1: 234 70% 55%;
-    --chart-2: 38 82% 45%;
-    --chart-3: 168 64% 38%;
-    --chart-4: 280 55% 55%;
-    --chart-5: 0 72% 51%;
+    --chart-1: 231 57% 36%;
+    --chart-2: 196 82% 55%;
+    --chart-3: 211 78% 45%;
+    --chart-4: 245 50% 40%;
+    --chart-5: 220 5% 60%;
 
     --success: 152 62% 36%;
     --warning: 36 92% 44%;
-    --info: 205 85% 48%;
+    --info: 211 78% 45%;
 
-    --shadow-card: 0 1px 2px 0 rgb(20 27 45 / 0.04), 0 1px 3px 0 rgb(20 27 45 / 0.05);
-    --shadow-hover: 0 10px 30px -12px rgb(20 27 45 / 0.18), 0 2px 6px -2px rgb(20 27 45 / 0.06);
-    --shadow-glow: 0 8px 24px -8px hsl(234 70% 55% / 0.45);
-    --gradient-primary: linear-gradient(135deg, hsl(234 70% 55%) 0%, hsl(252 68% 58%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(225 30% 98.5%) 100%);
-    --gradient-background: radial-gradient(1200px 600px at 100% -10%, hsl(234 85% 96%) 0%, transparent 60%);
+    --shadow-card: 0 1px 2px 0 rgb(17 23 54 / 0.04), 0 1px 3px 0 rgb(17 23 54 / 0.05);
+    --shadow-hover: 0 10px 30px -12px rgb(17 23 54 / 0.2), 0 2px 6px -2px rgb(17 23 54 / 0.06);
+    --shadow-glow: 0 8px 24px -8px hsl(211 78% 45% / 0.5);
+    --gradient-primary: linear-gradient(135deg, hsl(231 57% 36%) 0%, hsl(211 78% 45%) 100%);
+    --gradient-globe: radial-gradient(circle at 30% 25%, hsl(196 82% 69%) 0%, hsl(211 78% 45%) 38%, hsl(231 57% 36%) 70%, hsl(245 50% 25%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(222 33% 98.5%) 100%);
+    --gradient-background: radial-gradient(1200px 600px at 100% -10%, hsl(200 85% 95%) 0%, transparent 60%);
 
-    --education-blue: 234 70% 55%;
+    --education-blue: 231 57% 36%;
     --education-green: 152 62% 36%;
   }
 
   .dark {
-    --background: 228 35% 8%;
-    --foreground: 225 25% 93%;
-    --card: 228 32% 11%;
-    --card-foreground: 225 25% 93%;
-    --popover: 228 32% 11%;
-    --popover-foreground: 225 25% 93%;
-    --primary: 234 80% 66%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 228 25% 17%;
-    --secondary-foreground: 225 25% 93%;
-    --muted: 228 25% 15%;
-    --muted-foreground: 225 14% 62%;
-    --accent: 234 40% 20%;
-    --accent-foreground: 234 90% 85%;
+    --background: 234 45% 7%;
+    --foreground: 222 30% 93%;
+    --card: 234 40% 10.5%;
+    --card-foreground: 222 30% 93%;
+    --popover: 234 40% 10.5%;
+    --popover-foreground: 222 30% 93%;
+    --primary: 214 85% 64%;
+    --primary-foreground: 234 52% 10%;
+    --secondary: 232 32% 17%;
+    --secondary-foreground: 222 30% 93%;
+    --muted: 232 32% 14%;
+    --muted-foreground: 222 16% 64%;
+    --accent: 222 45% 19%;
+    --accent-foreground: 196 82% 80%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 228 22% 19%;
-    --input: 228 22% 22%;
-    --ring: 234 80% 66%;
-    --sidebar-background: 228 38% 6%;
-    --sidebar-foreground: 225 20% 78%;
-    --sidebar-primary: 234 80% 66%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 228 30% 13%;
+    --border: 232 28% 19%;
+    --input: 232 28% 22%;
+    --ring: 214 85% 64%;
+    --sidebar-background: 234 52% 6%;
+    --sidebar-foreground: 222 30% 80%;
+    --sidebar-primary: 196 82% 69%;
+    --sidebar-primary-foreground: 234 52% 10%;
+    --sidebar-accent: 232 40% 13%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 228 28% 13%;
-    --sidebar-ring: 234 80% 66%;
+    --sidebar-border: 232 36% 13%;
+    --sidebar-ring: 196 82% 69%;
   }
 }
 
@@ -140,7 +145,7 @@
   .pill-success { @apply bg-emerald-50 text-emerald-700 ring-emerald-600/20; }
   .pill-danger  { @apply bg-rose-50 text-rose-700 ring-rose-600/20; }
   .pill-warning { @apply bg-amber-50 text-amber-700 ring-amber-600/25; }
-  .pill-info    { @apply bg-indigo-50 text-indigo-700 ring-indigo-600/20; }
+  .pill-info    { @apply bg-blue-50 text-brand-navy ring-brand-navy/20; }
 
   /* Data tables inside cards */
   .data-table thead tr { @apply border-b border-border bg-muted/60; }
@@ -152,6 +157,18 @@
   /* Page title block */
   .page-title { @apply text-2xl md:text-[1.75rem] font-bold tracking-tight text-foreground; }
   .page-subtitle { @apply text-sm text-muted-foreground mt-1; }
+
+  /* Wordmark lockup echoing the logo: heavy "ESOL" over widely tracked "PREMIER CAMPUS" */
+  .brand-wordmark { @apply font-display font-extrabold leading-none tracking-[-0.01em]; }
+  .brand-tagline { @apply text-[9px] font-medium uppercase leading-none tracking-[0.34em]; }
+
+  /* Orbit motif — thin sky-cyan arcs like those circling the logo's globe */
+  .orbit-ring {
+    @apply pointer-events-none absolute rounded-full;
+    border: 1.5px solid hsl(var(--sky) / 0.35);
+    border-left-color: transparent;
+    border-bottom-color: transparent;
+  }
 
   .bg-app { background-image: var(--gradient-background); background-repeat: no-repeat; }
   .text-gradient {

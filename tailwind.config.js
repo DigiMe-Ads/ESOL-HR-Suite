@@ -68,7 +68,13 @@ export default {
                     blue: 'hsl(var(--education-blue))',
                     green: 'hsl(var(--education-green))'
                 },
-                gold: 'hsl(var(--gold))',
+                brand: {
+                    navy: 'hsl(var(--primary))',
+                    globe: 'hsl(var(--globe))',
+                    indigo: 'hsl(var(--indigo))',
+                    sky: 'hsl(var(--sky))',
+                    silver: 'hsl(var(--silver))'
+                },
                 success: 'hsl(var(--success))',
                 warning: 'hsl(var(--warning))',
                 info: 'hsl(var(--info))',
@@ -98,6 +104,7 @@ export default {
             },
             backgroundImage: {
                 'gradient-primary': 'var(--gradient-primary)',
+                'gradient-globe': 'var(--gradient-globe)',
                 'gradient-card': 'var(--gradient-card)',
                 'gradient-background': 'var(--gradient-background)'
             },

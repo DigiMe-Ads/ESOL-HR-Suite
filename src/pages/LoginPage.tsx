@@ -9,8 +9,7 @@ import { toast } from 'sonner';
 import {
   Eye, EyeOff, Users, Receipt, CalendarCheck, ArrowLeft, KeyRound, Mail, Lock, ShieldCheck, Loader2,
 } from 'lucide-react';
-
-const LOGO_URL = '/esol_logo.png';
+import { BrandLogo } from '@/components/common/BrandLogo';
 
 type Mode = 'signin' | 'reset';
 
@@ -112,28 +111,26 @@ const LoginPage: React.FC = () => {
       {/* Brand panel */}
       <div className="hidden lg:flex lg:w-[46%] xl:w-1/2 relative overflow-hidden bg-sidebar text-white">
         <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
-        <div className="absolute -top-32 -left-24 h-[420px] w-[420px] rounded-full bg-primary/40 blur-[110px]" />
-        <div className="absolute bottom-[-120px] right-[-80px] h-[380px] w-[380px] rounded-full bg-violet-500/30 blur-[110px]" />
-        <div className="absolute top-1/2 right-1/4 h-40 w-40 rounded-full bg-gold/20 blur-[80px]" />
+        <div className="absolute -top-32 -left-24 h-[420px] w-[420px] rounded-full bg-brand-globe/40 blur-[110px]" />
+        <div className="absolute bottom-[-120px] right-[-80px] h-[380px] w-[380px] rounded-full bg-primary/60 blur-[110px]" />
+        <div className="absolute top-1/2 right-1/4 h-40 w-40 rounded-full bg-brand-sky/20 blur-[80px]" />
+        {/* Orbit arcs, borrowed from the arrows circling the ESOL globe */}
+        <div className="orbit-ring -top-40 -right-40 h-[520px] w-[520px] rotate-[20deg]" />
+        <div className="orbit-ring -bottom-56 -left-32 h-[440px] w-[440px] rotate-[200deg] opacity-60" />
 
         <div className="relative z-10 flex flex-col justify-between w-full p-12 xl:p-16">
-          <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-xl bg-white p-1.5 shadow-xl">
-              <img src={LOGO_URL} alt="ESOL Premier Campus" className="h-full w-full object-contain" />
-            </div>
-            <div>
-              <p className="font-display font-bold leading-tight">ESOL Premier Campus</p>
-              <p className="text-xs text-white/60">HR Suite</p>
-            </div>
+          <div className="flex items-center gap-4">
+            <BrandLogo plate className="w-[260px] px-5 py-4" />
+            <span className="rounded-full border border-brand-sky/30 bg-brand-sky/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-sky">HR Suite</span>
           </div>
 
           <div className="max-w-md">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/80 backdrop-blur">
-              <ShieldCheck size={13} className="text-emerald-400" /> Secure staff portal
+              <ShieldCheck size={13} className="text-brand-sky" /> Secure staff portal
             </span>
             <h1 className="mt-5 text-4xl xl:text-5xl font-extrabold leading-[1.1] tracking-tight">
               People operations,{' '}
-              <span className="bg-gradient-to-r from-indigo-300 via-violet-300 to-amber-200 bg-clip-text text-transparent">beautifully simple.</span>
+              <span className="bg-gradient-to-r from-brand-sky via-sky-200 to-white bg-clip-text text-transparent">beautifully simple.</span>
             </h1>
             <p className="mt-4 text-white/65 text-[15px] leading-relaxed">
               Manage employees, run payroll and approve leave — all from a single, modern workspace.
@@ -161,14 +158,9 @@ const LoginPage: React.FC = () => {
       {/* Form panel */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-10 bg-app">
         <div className="w-full max-w-[420px] animate-fade-in">
-          <div className="flex lg:hidden items-center gap-3 mb-10">
-            <div className="h-11 w-11 rounded-xl bg-white p-1.5 shadow-card border border-border">
-              <img src={LOGO_URL} alt="ESOL Premier Campus" className="h-full w-full object-contain" />
-            </div>
-            <div>
-              <p className="font-display font-bold leading-tight">ESOL Premier Campus</p>
-              <p className="text-xs text-muted-foreground">HR Suite</p>
-            </div>
+          <div className="lg:hidden mb-10">
+            <BrandLogo className="w-[240px]" />
+            <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">HR Suite</p>
           </div>
 
           {mode === 'signin' ? (
