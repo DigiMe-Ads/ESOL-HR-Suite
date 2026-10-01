@@ -20,11 +20,12 @@ function generateTempPassword(): string {
   const symbols = '!@#$%&*';
   const all = upper + lower + digits + symbols;
   const pwd: string[] = [];
-  const pick = (set: string) => set[Math.floor(Math.random() * set.length)];
+  const rand = (n: number) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+  const pick = (set: string) => set[rand(set.length)];
   [upper, upper, lower, lower, digits, digits, symbols].forEach((set) => pwd.push(pick(set)));
   while (pwd.length < 16) pwd.push(pick(all));
   for (let i = pwd.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = rand(i + 1);
     [pwd[i], pwd[j]] = [pwd[j], pwd[i]];
   }
   return pwd.join('');
@@ -218,6 +219,9 @@ Deno.serve(async (req) => {
     if (body.action === 'set_ban') {
       const { user_id, banned } = body;
       if (!user_id) return json({ error: 'user_id is required' }, 400);
+      if (user_id === caller.id) return json({ error: 'You cannot change the login status of your own account' }, 400);
+      const { data: banTarget } = await admin.from('profiles').select('role').eq('id', user_id).maybeSingle();
+      if (banTarget?.role === 'admin') return json({ error: 'Administrator accounts cannot be disabled' }, 400);
       const { error: banErr } = await admin.auth.admin.updateUserById(user_id, {
         ban_duration: banned ? '87600h' : 'none',
       });

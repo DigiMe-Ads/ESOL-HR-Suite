@@ -72,7 +72,7 @@ export const routes: RouteConfig[] = [
   { name: 'My Leaves', path: '/my-leaves', element: <MyLeavesPage />, permission: 'leaves' },
   { name: 'Apply Leave', path: '/my-leaves/apply', element: <ApplyLeavePage />, permission: 'leaves' },
   { name: 'Leave Requests', path: '/leave-requests', element: <LeaveRequestsPage />, permission: 'leaves', roles: ['admin', 'hr_admin', 'manager'] },
-  { name: 'Leave Config', path: '/leave-config', element: <LeaveConfigPage />, roles: ['admin'] },
+  { name: 'Leave Config', path: '/leave-config', element: <LeaveConfigPage />, roles: ['admin', 'hr_admin'] },
 
   // User management
   { name: 'Users', path: '/users', element: <UserManagementPage />, permission: 'user_management' },

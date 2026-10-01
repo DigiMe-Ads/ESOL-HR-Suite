@@ -2,6 +2,28 @@ import { supabase } from '@/db/supabase';
 import type { Employee, SalaryRecord, LeaveRequest, LeaveTypeConfig, Profile, UserRole, LeaveType, Permission } from '@/types/types';
 import { round2 } from '@/lib/salaryCalc';
 
+type DbError = { code?: string; message: string } | null;
+
+// True when an RPC from a newer migration has not been applied to the database yet
+function isMissingFunction(error: DbError): boolean {
+  return !!error && (error.code === 'PGRST202' || /could not find the function/i.test(error.message));
+}
+
+// Translate constraint violations into messages people can act on
+export function friendlyDbError(error: DbError): string | null {
+  if (!error) return null;
+  const msg = error.message ?? '';
+  if (error.code === '23505') {
+    if (msg.includes('employee_id_key')) return 'An employee with this Employee ID already exists.';
+    if (msg.includes('profile_id')) return 'This user account is already linked to another employee.';
+    if (msg.includes('payroll')) return 'A salary record for this employee and month already exists. Edit the existing record instead.';
+    return 'This record already exists.';
+  }
+  if (error.code === '23514') return 'Some values are out of the allowed range. Please check the dates, days and amounts.';
+  if (error.code === '42501' || /row-level security/i.test(msg)) return 'You do not have permission to make this change.';
+  return msg || 'Something went wrong. Please try again.';
+}
+
 // =================== PROFILES ===================
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
@@ -21,12 +43,25 @@ export async function getAllProfiles(): Promise<Profile[]> {
   return Array.isArray(data) ? data : [];
 }
 
-export async function updateProfile(userId: string, updates: Partial<Pick<Profile, 'full_name' | 'avatar_url' | 'phone'>>): Promise<void> {
-  await supabase.from('profiles').update(updates).eq('id', userId);
+export async function updateProfile(userId: string, updates: Partial<Pick<Profile, 'full_name' | 'avatar_url' | 'phone'>>): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
+  return { error: friendlyDbError(error) };
 }
 
-export async function clearMustChangePassword(userId: string): Promise<void> {
-  await supabase.from('profiles').update({ must_change_password: false }).eq('id', userId);
+/**
+ * Sets the new password and clears the temporary-password flag server-side.
+ * `missing` is true while the database has not been migrated yet (caller falls back).
+ */
+export async function completeForcedPasswordChange(newPassword: string): Promise<{ error: string | null; missing: boolean }> {
+  const { error } = await supabase.rpc('complete_forced_password_change', { p_new_password: newPassword });
+  if (isMissingFunction(error)) return { error: null, missing: true };
+  return { error: error ? error.message : null, missing: false };
+}
+
+// Legacy path (before migration 00016): the profile flag is cleared from the client
+export async function clearMustChangePassword(userId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('profiles').update({ must_change_password: false }).eq('id', userId);
+  return { error: friendlyDbError(error) };
 }
 
 // =================== USER ACCOUNT ADMIN (DB RPCs — see migration 00015) ===================
@@ -118,8 +153,11 @@ export async function getEmployees(search?: string): Promise<Employee[]> {
     .select('*')
     .order('created_at', { ascending: false })
     .limit(500);
-  if (search) {
-    query = query.or(`full_name.ilike.%${search}%,employee_id.ilike.%${search}%`);
+  const term = search?.trim();
+  if (term) {
+    // Double-quote the value so commas/parentheses in the search text don't break the filter
+    const pattern = `"%${term.replace(/[\\"]/g, c => `\\${c}`)}%"`;
+    query = query.or(`full_name.ilike.${pattern},employee_id.ilike.${pattern}`);
   }
   const { data } = await query;
   return Array.isArray(data) ? data : [];
@@ -145,16 +183,30 @@ export async function getEmployeeByProfileId(profileId: string): Promise<Employe
 
 export async function createEmployee(
   emp: Omit<Employee, 'id' | 'created_at' | 'updated_at' | 'resigned_at' | 'employment_status' | 'created_by'> & { created_by: string }
-): Promise<void> {
-  await supabase.from('employees').insert(emp);
+): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('employees').insert(emp);
+  return { error: friendlyDbError(error) };
 }
 
-export async function updateEmployee(id: string, updates: Partial<Employee>): Promise<void> {
-  await supabase.from('employees').update(updates).eq('id', id);
+export async function updateEmployee(id: string, updates: Partial<Employee>): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('employees').update(updates).eq('id', id);
+  return { error: friendlyDbError(error) };
 }
 
-export async function deleteEmployee(id: string): Promise<void> {
-  await supabase.from('employees').delete().eq('id', id);
+export async function deleteEmployee(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('employees').delete().eq('id', id);
+  return { error: friendlyDbError(error) };
+}
+
+export interface LinkableProfile { id: string; full_name: string | null; email: string | null; role: string }
+
+// Accounts an Admin/HR user may link to an employee record (HR cannot read profiles directly)
+export async function getLinkableProfiles(): Promise<LinkableProfile[]> {
+  const { data, error } = await supabase.rpc('get_linkable_profiles');
+  if (!error && Array.isArray(data)) return data as LinkableProfile[];
+  // Before migration 00016 only admins can list profiles
+  const profiles = await getAllProfiles();
+  return profiles.filter(p => p.role !== 'admin').map(p => ({ id: p.id, full_name: p.full_name, email: p.email, role: p.role }));
 }
 
 // Mark an employee as resigned/reactivated and disable/enable their platform login
@@ -162,9 +214,10 @@ export async function setEmploymentStatus(
   employee: Pick<Employee, 'id' | 'profile_id'>,
   status: 'active' | 'resigned'
 ): Promise<{ error: string | null }> {
-  await updateEmployee(employee.id, status === 'resigned'
+  const upd = await updateEmployee(employee.id, status === 'resigned'
     ? { employment_status: 'resigned', resigned_at: new Date().toISOString() }
     : { employment_status: 'active', resigned_at: null });
+  if (upd.error) return upd;
   if (employee.profile_id) {
     const res = await setUserBan(employee.profile_id, status === 'resigned');
     if (res.error) return { error: res.error };
@@ -234,8 +287,7 @@ export async function createSalaryRecord(payload: SalaryRecordPayload): Promise<
     total_deductions: round2(payload.total_deductions),
     net_pay: round2(payload.net_pay),
   });
-  if (error) return { error: error.message };
-  return { error: null };
+  return { error: friendlyDbError(error) };
 }
 
 export async function updateSalaryRecord(id: string, payload: Partial<SalaryRecordPayload>): Promise<{ error: string | null }> {
@@ -245,12 +297,22 @@ export async function updateSalaryRecord(id: string, payload: Partial<SalaryReco
     rounded[k] = numFields.includes(k as typeof numFields[number]) && typeof v === 'number' ? round2(v) : v as number | string;
   }
   const { error } = await supabase.from('salary_records').update(rounded).eq('id', id);
-  if (error) return { error: error.message };
-  return { error: null };
+  return { error: friendlyDbError(error) };
 }
 
-export async function deleteSalaryRecord(id: string): Promise<void> {
-  await supabase.from('salary_records').delete().eq('id', id);
+export async function deleteSalaryRecord(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('salary_records').delete().eq('id', id);
+  return { error: friendlyDbError(error) };
+}
+
+// Approved leave overlapping a payroll period (works for salary preparers without leave access)
+export async function getApprovedLeavesForPayroll(
+  employeeId: string, start: string, end: string
+): Promise<Array<Pick<LeaveRequest, 'start_date' | 'end_date' | 'leave_type'>>> {
+  const { data, error } = await supabase.rpc('get_approved_leaves_for_payroll', { p_employee_id: employeeId, p_start: start, p_end: end });
+  if (!error && Array.isArray(data)) return data;
+  const all = await getLeaveRequests(employeeId, 'approved');
+  return all.filter(l => l.start_date <= end && l.end_date >= start);
 }
 
 // =================== LEAVE TYPE CONFIG ===================
@@ -262,8 +324,12 @@ export async function getLeaveTypeConfigs(): Promise<LeaveTypeConfig[]> {
   return Array.isArray(data) ? data : [];
 }
 
-export async function updateLeaveTypeConfig(id: string, updates: Partial<LeaveTypeConfig>): Promise<void> {
-  await supabase.from('leave_type_config').update(updates).eq('id', id);
+export async function updateLeaveTypeConfig(id: string, updates: Partial<LeaveTypeConfig>): Promise<{ error: string | null }> {
+  // select() so an RLS-blocked update (0 rows) is reported instead of silently ignored
+  const { data, error } = await supabase.from('leave_type_config').update(updates).eq('id', id).select('id');
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: 'You do not have permission to change leave configuration.' };
+  return { error: null };
 }
 
 // =================== LEAVE REQUESTS ===================
@@ -288,7 +354,14 @@ export async function createLeaveRequest(req: {
   reason: string;
 }): Promise<{ error: string | null }> {
   const { error } = await supabase.from('leave_requests').insert(req);
-  if (error) return { error: error.message };
+  return { error: friendlyDbError(error) };
+}
+
+// Employees may withdraw their own request while it is still pending
+export async function withdrawLeaveRequest(id: string): Promise<{ error: string | null }> {
+  const { data, error } = await supabase.from('leave_requests').delete().eq('id', id).eq('status', 'pending').select('id');
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: 'This request can no longer be withdrawn (already reviewed, or withdrawal is not enabled yet).' };
   return { error: null };
 }
 
@@ -298,14 +371,17 @@ export async function reviewLeaveRequest(
   reviewedBy: string,
   reviewComment?: string
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('leave_requests').update({
+  // Server-side review: blocks reviewing your own request and already-reviewed requests
+  const { error } = await supabase.rpc('review_leave_request', { p_leave_id: id, p_status: status, p_comment: reviewComment || null });
+  if (!isMissingFunction(error)) return { error: error ? error.message : null };
+  // Before migration 00016: direct update
+  const { error: legacyErr } = await supabase.from('leave_requests').update({
     status,
     reviewed_by: reviewedBy,
     review_comment: reviewComment || null,
     reviewed_at: new Date().toISOString(),
-  }).eq('id', id);
-  if (error) return { error: error.message };
-  return { error: null };
+  }).eq('id', id).eq('status', 'pending');
+  return { error: friendlyDbError(legacyErr) };
 }
 
 // =================== USER MANAGEMENT ===================

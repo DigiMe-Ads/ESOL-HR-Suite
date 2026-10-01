@@ -28,9 +28,11 @@ const LeaveConfigPage: React.FC = () => {
 
   const handleSave = async () => {
     setSaving(true);
-    await Promise.all(configs.map(c => updateLeaveTypeConfig(c.id, edits[c.id])));
-    toast.success('Leave configuration saved');
+    const results = await Promise.all(configs.map(c => updateLeaveTypeConfig(c.id, edits[c.id])));
     setSaving(false);
+    const failed = results.find(r => r.error);
+    if (failed) { toast.error(failed.error); return; }
+    toast.success('Leave configuration saved');
   };
 
   return (
@@ -55,12 +57,12 @@ const LeaveConfigPage: React.FC = () => {
               <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">Maternity —</span> 84 days (14 days before and 70 days after confinement), or 42 days for a non-live birth or miscarriage.</li>
               <li className="flex gap-2"><span className="text-primary font-semibold shrink-0">Paternity —</span> No statutory allocation; up to 3 working days may be granted under company policy.</li>
             </ul>
-            <p className="text-xs text-muted-foreground mt-3">These rules are enforced automatically when employees apply for leave. The entitlement numbers below are for reference only.</p>
+            <p className="text-xs text-muted-foreground mt-3">These rules are enforced automatically when employees apply for leave. The days per year below set each type's full entitlement (Year-2 annual leave is pro-rated from it), and switching a type off hides it from the Apply Leave form. Sick leave always shares the casual balance.</p>
           </CardContent>
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader className="pb-3"><CardTitle className="text-base">Leave Types & Entitlements (Reference)</CardTitle></CardHeader>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Leave Types & Entitlements</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
               [...Array(4)].map((_, i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)

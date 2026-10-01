@@ -122,11 +122,8 @@ const UserMenu: React.FC<{ variant: 'sidebar' | 'header' }> = ({ variant }) => {
 const NavContent: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => {
   const { profile } = useAuth();
 
-  // Show "My Leaves" instead of "Leave Requests" for staff-like roles
-  const isReviewer = profile?.role === 'admin' || profile?.role === 'hr_admin' || profile?.role === 'manager';
+  // Reviewers see both "Leave Requests" and their own "My Leaves"; visibility follows route permissions
   const isVisible = (item: NavItem) => {
-    if (item.path === '/my-leaves' && isReviewer) return false;
-    if (item.path === '/leave-requests' && !isReviewer) return false;
     const cfg = routeConfigs.find(r => r.path === item.path);
     return cfg ? hasRoutePermission(cfg, profile) : false;
   };

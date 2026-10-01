@@ -121,11 +121,18 @@ export async function generateSlipPdf(record: SalaryRecord, employee: Employee):
   // ════════════════════════════════════════════════════════════
   // 3 · EMPLOYEE INFO — boxed 2×4 grid, fixed label columns
   // ════════════════════════════════════════════════════════════
+  // Compact pay period ("25 Aug 2026 to 24 Sep 2026") so it fits the column at the same size as the other values
+  const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const m = record.payroll_month_number - 1;
+  const payPeriod = m >= 0 && m < 12 && record.payroll_year
+    ? `25 ${SHORT_MONTHS[(m + 11) % 12]} ${m === 0 ? record.payroll_year - 1 : record.payroll_year} to 24 ${SHORT_MONTHS[m]} ${record.payroll_year}`
+    : record.payroll_period || record.payroll_month;
+
   const infoRows: Array<{ lL: string; vL: string; lR: string; vR: string }> = [
     { lL: 'Employee ID', vL: employee.employee_id || '—', lR: 'Employee Name', vR: employee.full_name || '—' },
     { lL: 'Designation', vL: employee.designation || '—', lR: 'Commencement Date', vR: employee.employment_commencement || '—' },
     { lL: 'Bank', vL: employee.bank || '—', lR: 'Bank Branch', vR: employee.bank_branch || '—' },
-    { lL: 'Account Number', vL: employee.bank_account_number || '—', lR: 'Pay Period', vR: record.payroll_period || record.payroll_month },
+    { lL: 'Account Number', vL: employee.bank_account_number || '—', lR: 'Pay Period', vR: payPeriod },
   ];
   const infoRowH = 7.4;
   const infoH = infoRows.length * infoRowH;

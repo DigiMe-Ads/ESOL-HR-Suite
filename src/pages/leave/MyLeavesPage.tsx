@@ -4,11 +4,13 @@ import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getLeaveRequests, getEmployeeByProfileId } from '@/db/api';
+import { getLeaveRequests, getEmployeeByProfileId, withdrawLeaveRequest, getLeaveTypeConfigs } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { LeaveRequest, Employee } from '@/types/types';
-import { remainingDays, entitlementFor } from '@/lib/leavePolicy';
-import { Plus } from 'lucide-react';
+import type { LeaveRequest, Employee, LeaveType } from '@/types/types';
+import { remainingDays, entitlementFor, policyFromConfig, DEFAULT_POLICY } from '@/lib/leavePolicy';
+import type { LeavePolicy } from '@/lib/leavePolicy';
+import { Plus, Undo2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const statusColor: Record<string, string> = {
   pending: 'pill pill-warning',
@@ -16,12 +18,13 @@ const statusColor: Record<string, string> = {
   rejected: 'pill pill-danger',
 };
 
-const BALANCE_ROWS: { type: 'annual' | 'casual' | 'sick' | 'maternity' | 'paternity'; label: string; note: string }[] = [
+const BALANCE_ROWS: { type: LeaveType; label: string; note: string }[] = [
   { type: 'annual', label: 'Annual Leave', note: 'Year 1: none · Year 2: pro-rated · Year 3+: 14 days (min. 7 consecutive)' },
   { type: 'casual', label: 'Casual Leave', note: '7 days (Year 1: 1 day per 2 completed months) · lapses at year end' },
-  { type: 'sick', label: 'Sick Leave', note: 'Draws from the casual leave allocation' },
+  { type: 'sick', label: 'Sick Leave', note: 'Shares the casual leave balance above — not an extra allocation' },
   { type: 'maternity', label: 'Maternity Leave', note: '84 days per confinement' },
   { type: 'paternity', label: 'Paternity Leave', note: '3 days under company policy' },
+  { type: 'other', label: 'Other Leave', note: 'Special leave at HR discretion' },
 ];
 
 const MyLeavesPage: React.FC = () => {
@@ -31,11 +34,13 @@ const MyLeavesPage: React.FC = () => {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [policy, setPolicy] = useState<LeavePolicy>(DEFAULT_POLICY);
 
   useEffect(() => {
     (async () => {
       if (!profile) return;
-      const emp = await getEmployeeByProfileId(profile.id);
+      const [emp, configs] = await Promise.all([getEmployeeByProfileId(profile.id), getLeaveTypeConfigs()]);
+      if (configs.length) setPolicy(policyFromConfig(configs));
       if (emp) {
         setEmployee(emp);
         setLeaves(await getLeaveRequests(emp.id));
@@ -44,17 +49,28 @@ const MyLeavesPage: React.FC = () => {
     })();
   }, [profile]);
 
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+
+  const handleWithdraw = async (l: LeaveRequest) => {
+    setWithdrawingId(l.id);
+    const { error } = await withdrawLeaveRequest(l.id);
+    setWithdrawingId(null);
+    if (error) { toast.error(error); return; }
+    toast.success('Leave request withdrawn');
+    setLeaves(prev => prev.filter(x => x.id !== l.id));
+  };
+
   const filtered = leaves.filter(l => filterStatus === 'all' || l.status === filterStatus);
 
   const balances = useMemo(() => {
     if (!employee) return null;
     const year = new Date().getFullYear();
-    return BALANCE_ROWS.map(r => ({
+    return BALANCE_ROWS.filter(r => !policy.inactive.includes(r.type)).map(r => ({
       ...r,
-      entitlement: entitlementFor(r.type, employee.employment_commencement),
-      remaining: remainingDays(r.type, employee.employment_commencement, leaves, year),
+      entitlement: entitlementFor(r.type, employee.employment_commencement, new Date(), policy),
+      remaining: remainingDays(r.type, employee.employment_commencement, leaves, year, policy),
     }));
-  }, [employee, leaves]);
+  }, [employee, leaves, policy]);
 
   return (
     <AppLayout>
@@ -114,19 +130,20 @@ const MyLeavesPage: React.FC = () => {
                     <th className="text-left px-6 py-3">Reason</th>
                     <th className="text-left px-6 py-3">Status</th>
                     <th className="text-left px-6 py-3">Comment</th>
+                    <th className="text-right px-6 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     [...Array(3)].map((_, i) => (
                       <tr key={i} className="border-b border-border">
-                        {[...Array(7)].map((_, j) => (
+                        {[...Array(8)].map((_, j) => (
                           <td key={j} className="px-6 py-4"><div className="h-4 bg-muted rounded animate-pulse w-20" /></td>
                         ))}
                       </tr>
                     ))
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">No leave requests found.</td></tr>
+                    <tr><td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">No leave requests found.</td></tr>
                   ) : filtered.map(l => (
                     <tr key={l.id} className="border-b border-border hover:bg-muted/40 transition-colors">
                       <td className="px-6 py-3 capitalize">{l.leave_type} Leave</td>
@@ -138,6 +155,13 @@ const MyLeavesPage: React.FC = () => {
                         <span className={`${statusColor[l.status]}`}>{l.status}</span>
                       </td>
                       <td className="px-6 py-3 text-muted-foreground max-w-[160px] truncate">{l.review_comment ?? '—'}</td>
+                      <td className="px-6 py-3 text-right">
+                        {l.status === 'pending' && (
+                          <Button variant="ghost" size="sm" className="h-8 text-xs" disabled={withdrawingId === l.id} onClick={() => handleWithdraw(l)}>
+                            <Undo2 size={14} /> {withdrawingId === l.id ? 'Withdrawing…' : 'Withdraw'}
+                          </Button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

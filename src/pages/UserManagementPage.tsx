@@ -147,11 +147,12 @@ const UserManagementPage: React.FC = () => {
 
     // If linked to an employee record, update employee.profile_id and ensure employee.email matches
     if (employee_id && employee_id !== 'manual') {
-      await updateEmployee(employee_id, {
+      const link = await updateEmployee(employee_id, {
         profile_id: res.data.user_id,
         email: email.trim().toLowerCase(),
         phone: phone.trim() || null,
       });
+      if (link.error) toast.error(`Account created, but linking it to the employee failed: ${link.error}`);
     }
 
     setTempCreds({
@@ -341,7 +342,7 @@ No 179, High Level Road, Pannipitiya`;
                         <td className="px-6 py-3.5 font-medium text-foreground">
                           <div className="flex items-center gap-3">
                             <span className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${isAdmin ? 'bg-gradient-primary text-white' : 'bg-accent text-primary'}`}>
-                              {(p.full_name ?? p.email ?? '?').split(/s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
+                              {(p.full_name ?? p.email ?? '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()}
                             </span>
                             <div className="min-w-0">
                               {p.full_name ?? '—'}
@@ -438,7 +439,7 @@ No 179, High Level Road, Pannipitiya`;
                   {employees.map(emp => {
                     const alreadyLinked = profiles.some(p => p.id === emp.profile_id);
                     return (
-                      <SelectItem key={emp.id} value={emp.id}>
+                      <SelectItem key={emp.id} value={emp.id} disabled={alreadyLinked}>
                         {emp.employee_id} — {emp.full_name} {emp.email ? `(${emp.email})` : '(No email)'} {alreadyLinked ? '✓ [Has Account]' : ''}
                       </SelectItem>
                     );

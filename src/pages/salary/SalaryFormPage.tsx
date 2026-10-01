@@ -7,15 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getEmployeeDirectory, createSalaryRecord, updateSalaryRecord, getSalaryRecord, getLeaveRequests } from '@/db/api';
+import { getEmployeeDirectory, createSalaryRecord, updateSalaryRecord, getSalaryRecord, getApprovedLeavesForPayroll } from '@/db/api';
 import type { EmployeeDirectoryEntry } from '@/db/api';
 import { calculateSalary, formatLKR, STAMP_DUTY_AMOUNT } from '@/lib/salaryCalc';
 import { useAuth } from '@/contexts/AuthContext';
 import type { LeaveRequest, SalaryRecord } from '@/types/types';
+import { MONTHS, PAYROLL_BASIS_DAYS, buildPayrollPeriod, leaveDaysInPeriod, validatePayrollDays } from '@/lib/payroll';
 import { toast } from 'sonner';
 import { ArrowLeft, Calculator, Wand2, Plus, Trash2 } from 'lucide-react';
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
 
 type AllowanceType = 'transport' | 'education' | 'attendance';
@@ -46,31 +46,6 @@ const EMPTY: FormState = {
   actual_working_days: '30', leave_entitlement_days: '0', stamp_duty_enabled: true,
 };
 
-// Payroll period: 25th of previous month → 24th of selected month
-function buildPayrollPeriod(monthName: string, yearStr: string): { label: string; start: Date; end: Date } | null {
-  const m = MONTHS.indexOf(monthName);
-  const y = parseInt(yearStr);
-  if (m < 0 || Number.isNaN(y)) return null;
-  const start = new Date(m === 0 ? y - 1 : y, m === 0 ? 11 : m - 1, 25);
-  const end = new Date(y, m, 24);
-  const fmt = (d: Date) => `${d.getDate()}${d.getDate() % 10 === 1 && d.getDate() !== 11 ? 'st' : d.getDate() % 10 === 2 && d.getDate() !== 12 ? 'nd' : d.getDate() % 10 === 3 && d.getDate() !== 13 ? 'rd' : 'th'} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-  return { label: `${fmt(start)} to ${fmt(end)}`, start, end };
-}
-
-function leaveDaysInPeriod(leaves: LeaveRequest[], start: Date, end: Date): number {
-  const msDay = 86400000;
-  return leaves.reduce((sum, l) => {
-    if (l.status !== 'approved') return sum;
-    const s = new Date(l.start_date);
-    const e = new Date(l.end_date);
-    if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return sum;
-    const overlapStart = Math.max(s.getTime(), start.getTime());
-    const overlapEnd = Math.min(e.getTime(), end.getTime());
-    const days = Math.floor((overlapEnd - overlapStart) / msDay) + 1;
-    return sum + (days > 0 ? days : 0);
-  }, 0);
-}
-
 // Map allowance rows to DB columns
 function allowanceMap(allowances: AllowanceRow[]) {
   return {
@@ -88,7 +63,7 @@ const SalaryFormPage: React.FC = () => {
   const { profile } = useAuth();
   const [form, setForm] = useState<FormState>({ ...EMPTY, employee_id: searchParams.get('employeeId') ?? '' });
   const [employees, setEmployees] = useState<EmployeeDirectoryEntry[]>([]);
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [leaves, setLeaves] = useState<Array<Pick<LeaveRequest, 'start_date' | 'end_date'>>>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [daysTouched, setDaysTouched] = useState(false);
@@ -123,17 +98,21 @@ const SalaryFormPage: React.FC = () => {
     })();
   }, [id, isEdit]);
 
-  useEffect(() => {
-    if (!form.employee_id || isEdit) return;
-    getLeaveRequests(form.employee_id).then(setLeaves);
-  }, [form.employee_id, isEdit]);
+  const period = useMemo(() => buildPayrollPeriod(form.payroll_month_name, form.payroll_year), [form.payroll_month_name, form.payroll_year]);
 
-  // Auto-populate payroll period + working/leave days
+  // Approved leave in the selected period (RPC works for Finance users without leave access)
   useEffect(() => {
-    if (loading || isEdit) return;
-    const period = buildPayrollPeriod(form.payroll_month_name, form.payroll_year);
-    if (!period) return;
+    if (!form.employee_id || !period || isEdit) return;
+    let cancelled = false;
+    getApprovedLeavesForPayroll(form.employee_id, period.startIso, period.endIso).then(l => { if (!cancelled) setLeaves(l); });
+    return () => { cancelled = true; };
+  }, [form.employee_id, period, isEdit]);
+
+  // Auto-populate payroll period (also when the month changes while editing) + working/leave days
+  useEffect(() => {
+    if (loading || !period) return;
     setForm(f => f.payroll_period === period.label ? f : { ...f, payroll_period: period.label });
+    if (isEdit) return;
     if (!daysTouched && form.employee_id) {
       const leaveDays = leaveDaysInPeriod(leaves, period.start, period.end);
       const working = Math.max(30 - leaveDays, 0);
@@ -142,7 +121,7 @@ const SalaryFormPage: React.FC = () => {
           ? f : { ...f, leave_entitlement_days: String(leaveDays), actual_working_days: String(working) }
       ));
     }
-  }, [form.payroll_month_name, form.payroll_year, form.employee_id, leaves, loading, isEdit, daysTouched]);
+  }, [period, form.employee_id, leaves, loading, isEdit, daysTouched]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm(f => ({ ...f, [k]: v }));
 
@@ -169,6 +148,8 @@ const SalaryFormPage: React.FC = () => {
     if (!form.employee_id || !form.payroll_month_name || !form.payroll_year || !form.basic_salary) {
       toast.error('Please fill all required fields'); return;
     }
+    const dayError = period && validatePayrollDays(parseFloat(form.actual_working_days) || 0, parseFloat(form.leave_entitlement_days) || 0, period.days);
+    if (dayError) { toast.error(dayError); return; }
     // Guard: no duplicate allowance types
     const types = form.allowances.map(a => a.type);
     if (new Set(types).size !== types.length) {
@@ -199,9 +180,9 @@ const SalaryFormPage: React.FC = () => {
       stamp_duty: form.stamp_duty_enabled ? STAMP_DUTY_AMOUNT : 0,
       total_deductions: calc.totalDeductions,
       net_pay: calc.netPay,
-      created_by: profile!.id,
     };
-    const result = isEdit ? await updateSalaryRecord(id!, payload) : await createSalaryRecord(payload);
+    // created_by is kept from the original record when editing
+    const result = isEdit ? await updateSalaryRecord(id!, payload) : await createSalaryRecord({ ...payload, created_by: profile!.id });
     setSaving(false);
     if (result.error) { toast.error(result.error); return; }
     toast.success(isEdit ? 'Salary record updated' : 'Salary record created');
@@ -268,7 +249,7 @@ const SalaryFormPage: React.FC = () => {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Payroll Period <span className="text-xs font-normal text-muted-foreground">(auto-filled: 25th of previous month to 24th of selected month)</span></Label>
-                    <Input value={form.payroll_period} onChange={e => set('payroll_period', e.target.value)} readOnly={!isEdit} />
+                    <Input value={form.payroll_period} readOnly />
                   </div>
                 </CardContent>
               </Card>
@@ -335,6 +316,11 @@ const SalaryFormPage: React.FC = () => {
                     <Input type="number" min="0" max="90" step="0.5" value={form.leave_entitlement_days}
                       onChange={e => { setDaysTouched(true); set('leave_entitlement_days', e.target.value); }} />
                   </div>
+                  {period && (
+                    <p className={`text-xs ${validatePayrollDays(parseFloat(form.actual_working_days) || 0, parseFloat(form.leave_entitlement_days) || 0, period.days) ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      Paid days: {(parseFloat(form.actual_working_days) || 0) + (parseFloat(form.leave_entitlement_days) || 0)} (max {Math.max(PAYROLL_BASIS_DAYS, period.days)} for this period)
+                    </p>
+                  )}
                   {daysTouched && !isEdit && (
                     <Button type="button" variant="ghost" size="sm" className="text-xs h-7" onClick={() => setDaysTouched(false)}>
                       <Wand2 size={13} className="mr-1" /> Reset to auto-filled values

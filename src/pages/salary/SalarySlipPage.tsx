@@ -7,6 +7,7 @@ import type { SalaryRecord, Employee } from '@/types/types';
 import { formatLKR, round2 } from '@/lib/salaryCalc';
 import { generateSlipPdf } from '@/lib/slipPdf';
 import { ArrowLeft, Download } from 'lucide-react';
+import { toast } from 'sonner';
 
 const LOGO_URL = '/esol_logo.png';
 const COMPANY_NAME = 'ESOL Premier Campus (Pvt) Limited';
@@ -131,6 +132,9 @@ const SalarySlipPage: React.FC = () => {
     setDownloading(true);
     try {
       await generateSlipPdf(record, employee);
+    } catch (err) {
+      console.error('Salary slip PDF failed:', err);
+      toast.error('Could not generate the PDF. Please try again.');
     } finally {
       setDownloading(false);
     }

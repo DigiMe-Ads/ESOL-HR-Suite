@@ -35,3 +35,7 @@ history/*.json
 .native-wind-cache
 .vite
 .env
+
+# QA workbook, harnesses and run output (local only)
+qa/
+*.xlsx

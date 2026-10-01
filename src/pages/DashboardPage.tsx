@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getDashboardStats, getSalaryRecords, getLeaveRequests, getEmployeeByProfileId } from '@/db/api';
+import { getDashboardStats, getSalaryRecords, getLeaveRequests } from '@/db/api';
 import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import { formatLKR } from '@/lib/salaryCalc';
 import {
@@ -25,39 +25,24 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        // Permission-driven data scope (counts respect RLS silently)
-        const seeEmployees = hasRoutePermission(routeConfigs.find(r => r.path === '/employees')!, profile);
-        const seeLeaves = hasRoutePermission(routeConfigs.find(r => r.path === '/leave-requests')!, profile);
-        const seeSalaries = hasRoutePermission(routeConfigs.find(r => r.path === '/salary/history-marker') ?? routeConfigs.find(r => r.path === '/salary-slips')!, profile);
-        const isSelfView = !seeEmployees && !seeLeaves && !seeSalaries;
-
-        if (!isSelfView) {
-          const [s, salaries, leaves] = await Promise.all([
-            seeEmployees ? getDashboardStats() : null,
-            seeSalaries || seeEmployees ? getSalaryRecords() : Promise.resolve([]),
-            seeLeaves ? getLeaveRequests(undefined, 'pending') : Promise.resolve([]),
-          ]);
-          if (s) setStats(s);
-          if (salaries) setRecentPayrolls(salaries.slice(0, 5).map(r => ({ id: r.id, payroll_month: r.payroll_month, net_pay: r.net_pay, employee_id: r.employee_id })));
-          if (leaves) setRecentLeaves(leaves.slice(0, 5).map(r => ({ id: r.id, leave_type: r.leave_type, start_date: r.start_date, status: r.status, total_days: r.total_days })));
-        } else {
-          // Self view (staff-like): own records only
-          const emp = profile ? await getEmployeeByProfileId(profile.id) : null;
-          if (emp) {
-            const [salaries, leaves] = await Promise.all([
-              getSalaryRecords(emp.id),
-              getLeaveRequests(emp.id),
-            ]);
-            setStats({ totalEmployees: 0, activeEmployees: 0, resignedEmployees: 0, pendingLeaves: leaves.filter(l => l.status === 'pending').length, totalSalaryRecords: salaries.length });
-            setRecentPayrolls(salaries.slice(0, 3).map(r => ({ id: r.id, payroll_month: r.payroll_month, net_pay: r.net_pay, employee_id: r.employee_id })));
-            setRecentLeaves(leaves.slice(0, 5).map(r => ({ id: r.id, leave_type: r.leave_type, start_date: r.start_date, status: r.status, total_days: r.total_days })));
-          }
-        }
+        // Counts and lists are scoped by row-level security: reviewers/managers see everyone,
+        // staff see their own records — so the same queries work for every role.
+        const canSee = (path: string) => hasRoutePermission(routeConfigs.find(r => r.path === path)!, profile);
+        const seeSalaries = canSee('/salary-slips') || canSee('/salary-history');
+        const seeAllLeaves = canSee('/leave-requests');
+        const seeOwnLeaves = canSee('/my-leaves');
+        const [s, salaries, leaves] = await Promise.all([
+          getDashboardStats(),
+          seeSalaries ? getSalaryRecords() : Promise.resolve([]),
+          seeAllLeaves ? getLeaveRequests(undefined, 'pending') : seeOwnLeaves ? getLeaveRequests() : Promise.resolve([]),
+        ]);
+        setStats(s);
+        setRecentPayrolls(salaries.slice(0, 5).map(r => ({ id: r.id, payroll_month: r.payroll_month, net_pay: r.net_pay, employee_id: r.employee_id })));
+        setRecentLeaves(leaves.slice(0, 5).map(r => ({ id: r.id, leave_type: r.leave_type, start_date: r.start_date, status: r.status, total_days: r.total_days })));
       } finally { setLoading(false); }
     })();
   }, [profile]);
 
-  const role = profile?.role ?? 'staff';
   const can = (path: string) => hasRoutePermission(routeConfigs.find(r => r.path === path)!, profile);
   const isReviewer = can('/leave-requests');
   const isSelfViewer = !isReviewer && can('/my-leaves');
@@ -72,9 +57,9 @@ const DashboardPage: React.FC = () => {
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const statCards: Array<{ show: boolean; label: string; value: number; icon: React.ElementType; tone: string; hint: string }> = [
-    { show: role !== 'staff', label: 'Active Employees', value: stats.activeEmployees, icon: Users, tone: 'from-primary to-brand-globe', hint: 'Currently on payroll' },
-    { show: role !== 'staff', label: 'Resigned', value: stats.resignedEmployees, icon: UserMinus, tone: 'from-rose-500 to-pink-500', hint: 'Records retained' },
-    { show: isReviewer || isSelfViewer, label: 'Pending Leaves', value: stats.pendingLeaves, icon: Clock, tone: 'from-amber-500 to-orange-500', hint: 'Awaiting review' },
+    { show: can('/employees'), label: 'Active Employees', value: stats.activeEmployees, icon: Users, tone: 'from-primary to-brand-globe', hint: 'Currently on payroll' },
+    { show: can('/employees'), label: 'Resigned', value: stats.resignedEmployees, icon: UserMinus, tone: 'from-rose-500 to-pink-500', hint: 'Records retained' },
+    { show: isReviewer || isSelfViewer, label: 'Pending Leaves', value: stats.pendingLeaves, icon: Clock, tone: 'from-amber-500 to-orange-500', hint: isReviewer ? 'Awaiting review' : 'Your requests awaiting review' },
     { show: can('/salary-slips') || can('/salary-history'), label: 'Salary Records', value: stats.totalSalaryRecords, icon: TrendingUp, tone: 'from-brand-globe to-sky-400', hint: 'Payroll entries' },
   ];
 

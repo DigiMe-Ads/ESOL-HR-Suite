@@ -27,7 +27,8 @@ export function calculateSalary(inputs: SalaryCalcInputs): SalaryCalcResult {
   const totalStatutory = epfEmployer + etfPayment;
 
   const epfEmployee = basicSalaryEarned * 0.08;
-  const stampDutyAmount = stampDuty > 0 ? stampDuty : 0;
+  // No stamp duty when nothing is earned, so net pay never goes negative
+  const stampDutyAmount = stampDuty > 0 && totalGrossEarning > 0 ? stampDuty : 0;
   const totalDeductions = epfEmployee + stampDutyAmount;
   const netPay = totalGrossEarning - totalDeductions;
 
@@ -58,5 +59,6 @@ export function formatLKR(amount: number): string {
 }
 
 export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  // EPSILON corrects binary float error so half-cents round up (1.005 → 1.01)
+  return Math.round((n + Math.sign(n) * Number.EPSILON) * 100) / 100;
 }

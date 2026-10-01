@@ -56,7 +56,8 @@ const SalaryHistoryPage: React.FC = () => {
   });
 
   const handleDelete = async (id: string) => {
-    await deleteSalaryRecord(id);
+    const { error } = await deleteSalaryRecord(id);
+    if (error) { toast.error(error); return; }
     toast.success('Record deleted');
     load();
   };

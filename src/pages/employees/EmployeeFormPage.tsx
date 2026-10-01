@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { createEmployee, updateEmployee, getEmployee, getAllProfiles } from '@/db/api';
+import { createEmployee, updateEmployee, getEmployee, getLinkableProfiles } from '@/db/api';
+import type { LinkableProfile } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Profile } from '@/types/types';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -38,7 +38,7 @@ const EmployeeFormPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile: authProfile } = useAuth();
   const [form, setForm] = useState<FormData>(EMPTY);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<LinkableProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -61,7 +61,7 @@ const EmployeeFormPage: React.FC = () => {
             profile_id: e.profile_id ?? '__none__',
           });
         }) : Promise.resolve(),
-        getAllProfiles(),
+        getLinkableProfiles(),
       ]);
       setProfiles(profs);
       setLoading(false);
@@ -95,14 +95,12 @@ const EmployeeFormPage: React.FC = () => {
       bank_account_number: form.bank_account_number.trim(),
       profile_id: form.profile_id === '__none__' ? null : form.profile_id,
     };
-    if (isEdit) {
-      await updateEmployee(id!, payload);
-      toast.success('Employee updated');
-    } else {
-      await createEmployee({ ...payload, created_by: authProfile!.id });
-      toast.success('Employee created');
-    }
+    const { error } = isEdit
+      ? await updateEmployee(id!, payload)
+      : await createEmployee({ ...payload, created_by: authProfile!.id });
     setSaving(false);
+    if (error) { toast.error(error); return; }
+    toast.success(isEdit ? 'Employee updated' : 'Employee created');
     navigate('/employees');
   };
 
@@ -159,7 +157,7 @@ const EmployeeFormPage: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">— Not linked —</SelectItem>
-                      {profiles.filter(p => p.role !== 'admin').map(p => (
+                      {profiles.map(p => (
                         <SelectItem key={p.id} value={p.id}>{p.full_name ?? p.email ?? p.id}</SelectItem>
                       ))}
                     </SelectContent>

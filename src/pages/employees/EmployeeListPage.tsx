@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getEmployees } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDebounce } from '@/hooks/use-debounce';
+import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import type { Employee } from '@/types/types';
 import { Plus, Search, Pencil, Eye } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { deleteEmployee, setEmploymentStatus } from '@/db/api';
+import { setEmploymentStatus } from '@/db/api';
 import { UserMinus, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,21 +30,23 @@ const EmployeeListPage: React.FC = () => {
   const [confirmResign, setConfirmResign] = useState<Employee | null>(null);
   const [resignBusy, setResignBusy] = useState(false);
 
-  const load = async (q?: string) => {
-    setLoading(true);
-    setEmployees(await getEmployees(q || undefined));
-    setLoading(false);
-  };
+  const debouncedSearch = useDebounce(search, 350);
+  const [reloadKey, setReloadKey] = useState(0);
+  const canEdit = hasRoutePermission(routeConfigs.find(r => r.path === '/employees/new')!, profile);
 
-  useEffect(() => { load(); }, []);
+  // Debounced search; stale responses are dropped so results always match the latest input
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getEmployees(debouncedSearch || undefined).then(list => {
+      if (cancelled) return;
+      setEmployees(list);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [debouncedSearch, reloadKey]);
 
   const filtered = employees.filter(e => statusFilter === 'all' || e.employment_status === statusFilter);
-
-  const handleDelete = async (id: string) => {
-    await deleteEmployee(id);
-    toast.success('Employee deleted');
-    load(search);
-  };
 
   const handleResignToggle = async () => {
     if (!confirmResign) return;
@@ -55,7 +59,7 @@ const EmployeeListPage: React.FC = () => {
     if (res.error) { toast.error(res.error); return; }
     toast.success(target.employment_status === 'resigned' ? 'Employee reactivated' : 'Employee marked as resigned');
     setConfirmResign(null);
-    load(search);
+    setReloadKey(k => k + 1);
   };
 
   return (
@@ -66,9 +70,11 @@ const EmployeeListPage: React.FC = () => {
             <h1 className="page-title">Employees</h1>
             <p className="page-subtitle">Manage all employee records</p>
           </div>
-          <Button onClick={() => navigate('/employees/new')} className="shrink-0">
-            <Plus size={16} className="mr-1.5" /> Add Employee
-          </Button>
+          {canEdit && (
+            <Button onClick={() => navigate('/employees/new')} className="shrink-0">
+              <Plus size={16} className="mr-1.5" /> Add Employee
+            </Button>
+          )}
         </div>
 
         <Card className="overflow-hidden">
@@ -78,7 +84,7 @@ const EmployeeListPage: React.FC = () => {
               <Input
                 placeholder="Search by name or ID..."
                 value={search}
-                onChange={e => { setSearch(e.target.value); setTimeout(() => load(e.target.value), 400); }}
+                onChange={e => setSearch(e.target.value)}
                 className="pl-9"
               />
             </div>
@@ -140,10 +146,12 @@ const EmployeeListPage: React.FC = () => {
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/employees/${emp.id}`)}>
                             <Eye size={15} />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/employees/${emp.id}/edit`)}>
-                            <Pencil size={15} />
-                          </Button>
-                          {(profile?.role === 'admin' || profile?.role === 'hr_admin') && (
+                          {canEdit && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/employees/${emp.id}/edit`)}>
+                              <Pencil size={15} />
+                            </Button>
+                          )}
+                          {canEdit && (
                             <Button
                               variant="ghost" size="icon" className="h-8 w-8"
                               title={emp.employment_status === 'resigned' ? 'Reactivate employee' : 'Mark as resigned'}

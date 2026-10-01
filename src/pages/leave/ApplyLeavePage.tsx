@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createLeaveRequest, getEmployeeByProfileId, getLeaveRequests } from '@/db/api';
+import { createLeaveRequest, getEmployeeByProfileId, getLeaveRequests, getLeaveTypeConfigs } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { LeaveType, Employee, LeaveRequest } from '@/types/types';
-import { validateLeaveRequest, remainingDays, entitlementFor } from '@/lib/leavePolicy';
+import { validateLeaveRequest, remainingDays, entitlementFor, countLeaveDays, policyFromConfig, DEFAULT_POLICY } from '@/lib/leavePolicy';
+import type { LeavePolicy } from '@/lib/leavePolicy';
 import { toast } from 'sonner';
 import { ArrowLeft, Info } from 'lucide-react';
 
@@ -18,9 +19,10 @@ import { ArrowLeft, Info } from 'lucide-react';
 const LEAVE_TYPE_ORDER: { value: LeaveType; label: string; note: string }[] = [
   { value: 'annual', label: 'Annual Leave', note: '14 days from Year 3 · must be taken as at least 7 consecutive days' },
   { value: 'casual', label: 'Casual Leave', note: '7 days (Year 1: 1 day per 2 completed months) · lapses at year end' },
-  { value: 'sick', label: 'Sick Leave', note: 'Covered by the 7-day casual leave allocation' },
+  { value: 'sick', label: 'Sick Leave', note: 'Shares the casual leave balance (no separate allocation)' },
   { value: 'maternity', label: 'Maternity Leave', note: '84 days (14 before + 70 after delivery)' },
   { value: 'paternity', label: 'Paternity Leave', note: '3 days under company policy' },
+  { value: 'other', label: 'Other Leave', note: 'Special leave at HR discretion (limited days per year)' },
 ];
 
 const ApplyLeavePage: React.FC = () => {
@@ -31,11 +33,13 @@ const ApplyLeavePage: React.FC = () => {
   const [form, setForm] = useState({ leave_type: '' as LeaveType | '', start_date: '', end_date: '', reason: '' });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [policy, setPolicy] = useState<LeavePolicy>(DEFAULT_POLICY);
 
   useEffect(() => {
     (async () => {
       if (!profile) return;
-      const emp = await getEmployeeByProfileId(profile.id);
+      const [emp, configs] = await Promise.all([getEmployeeByProfileId(profile.id), getLeaveTypeConfigs()]);
+      if (configs.length) setPolicy(policyFromConfig(configs));
       if (emp) {
         setEmployee(emp);
         setLeaves(await getLeaveRequests(emp.id));
@@ -44,25 +48,18 @@ const ApplyLeavePage: React.FC = () => {
     })();
   }, [profile]);
 
-  const calcDays = (): number => {
-    if (!form.start_date || !form.end_date) return 0;
-    const start = new Date(form.start_date);
-    const end = new Date(form.end_date);
-    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    return diff > 0 ? diff : 0;
-  };
-
-  const totalDays = calcDays();
+  const totalDays = countLeaveDays(form.start_date, form.end_date);
+  const leaveTypes = useMemo(() => LEAVE_TYPE_ORDER.filter(t => !policy.inactive.includes(t.value)), [policy]);
 
   const balances = useMemo(() => {
     if (!employee) return null;
     const year = new Date().getFullYear();
-    return LEAVE_TYPE_ORDER.map(t => ({
+    return leaveTypes.map(t => ({
       ...t,
-      entitlement: entitlementFor(t.value, employee.employment_commencement),
-      remaining: remainingDays(t.value, employee.employment_commencement, leaves, year),
+      entitlement: entitlementFor(t.value, employee.employment_commencement, new Date(), policy),
+      remaining: remainingDays(t.value, employee.employment_commencement, leaves, year, policy),
     }));
-  }, [employee, leaves]);
+  }, [employee, leaves, leaveTypes, policy]);
 
   const selectedNote = LEAVE_TYPE_ORDER.find(t => t.value === form.leave_type)?.note;
 
@@ -73,8 +70,11 @@ const ApplyLeavePage: React.FC = () => {
       totalDays,
       commencement: employee.employment_commencement,
       leaves,
+      startDate: form.start_date,
+      endDate: form.end_date,
+      policy,
     });
-  }, [employee, form.leave_type, totalDays, leaves]);
+  }, [employee, form.leave_type, form.start_date, form.end_date, totalDays, leaves, policy]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +86,9 @@ const ApplyLeavePage: React.FC = () => {
       totalDays,
       commencement: employee.employment_commencement,
       leaves,
+      startDate: form.start_date,
+      endDate: form.end_date,
+      policy,
     });
     if (!check.ok) { toast.error(check.error); return; }
     setSaving(true);
@@ -143,7 +146,7 @@ const ApplyLeavePage: React.FC = () => {
                 <Select value={form.leave_type} onValueChange={v => setForm(f => ({ ...f, leave_type: v as LeaveType }))} disabled={loading}>
                   <SelectTrigger><SelectValue placeholder="Select leave type..." /></SelectTrigger>
                   <SelectContent>
-                    {LEAVE_TYPE_ORDER.map(t => (
+                    {leaveTypes.map(t => (
                       <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                     ))}
                   </SelectContent>

@@ -59,6 +59,9 @@ const SalarySlipsPage: React.FC = () => {
       const emp = await getEmployeeForSlip(r.employee_id);
       if (!emp) { toast.error('Employee record not found'); return; }
       await generateSlipPdf(r, emp);
+    } catch (err) {
+      console.error('Salary slip PDF failed:', err);
+      toast.error('Could not generate the PDF. Please try again.');
     } finally {
       setDownloadingId(null);
     }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
-import { clearMustChangePassword } from '@/db/api';
+import { clearMustChangePassword, completeForcedPasswordChange } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { getFirstPermittedPath } from '@/routes';
 import AppLayout from '@/components/layouts/AppLayout';
@@ -48,16 +48,30 @@ const ChangePasswordPage: React.FC = () => {
       }
     }
 
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
+    // Forced change: the server sets the password and clears the temporary flag together
+    const serverSide = forced ? await completeForcedPasswordChange(password) : { error: null, missing: true };
+    if (serverSide.error) {
       setLoading(false);
-      toast.error(error.message);
+      toast.error(serverSide.error);
       return;
     }
-    if (forced && user) {
-      await clearMustChangePassword(user.id);
-      await refreshProfile();
+    if (serverSide.missing) {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        setLoading(false);
+        toast.error(error.message);
+        return;
+      }
+      if (forced && user) {
+        const cleared = await clearMustChangePassword(user.id);
+        if (cleared.error) {
+          setLoading(false);
+          toast.error(cleared.error);
+          return;
+        }
+      }
     }
+    if (forced) await refreshProfile();
     setLoading(false);
     setCurrent(''); setPassword(''); setConfirm('');
     toast.success('Password updated successfully');

@@ -51,8 +51,9 @@ export function RouteGuard({ children }: RouteGuardProps) {
       navigate('/login', { state: { from: location.pathname }, replace: true });
       return;
     }
-    // A signed-in user has nothing to do on public pages (fixes the "must refresh after login" issue)
-    if (user && isPublic) {
+    // A signed-in user has nothing to do on public pages (fixes the "must refresh after login" issue).
+    // /403 is excluded so the Access Denied notice is actually shown.
+    if (user && isPublic && location.pathname !== '/403') {
       navigate(getFirstPermittedPath(profile), { replace: true });
       return;
     }

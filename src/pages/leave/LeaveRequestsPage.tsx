@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getLeaveRequests, getEmployeeDirectory, reviewLeaveRequest } from '@/db/api';
+import { getLeaveRequests, getEmployeeDirectory, reviewLeaveRequest, getEmployeeByProfileId } from '@/db/api';
 import type { EmployeeDirectoryEntry } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { LeaveRequest, Employee } from '@/types/types';
@@ -29,16 +29,22 @@ const LeaveRequestsPage: React.FC = () => {
   const [reviewDialog, setReviewDialog] = useState<{ leave: LeaveRequest; action: 'approved' | 'rejected' } | null>(null);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [ownEmployeeId, setOwnEmployeeId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [lvs, emps] = await Promise.all([getLeaveRequests(), getEmployeeDirectory()]);
+    const [lvs, emps, own] = await Promise.all([
+      getLeaveRequests(),
+      getEmployeeDirectory(),
+      profile ? getEmployeeByProfileId(profile.id) : Promise.resolve(null),
+    ]);
     setLeaves(lvs);
     setEmployees(emps);
+    setOwnEmployeeId(own?.id ?? null);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [profile?.id]);
 
   const empMap = Object.fromEntries(employees.map(e => [e.id, e]));
   const filtered = leaves.filter(l => filterStatus === 'all' || l.status === filterStatus);
@@ -121,7 +127,10 @@ const LeaveRequestsPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-3">
                           <div className="flex items-center justify-end gap-1">
-                            {l.status === 'pending' && (
+                            {l.status === 'pending' && l.employee_id === ownEmployeeId && (
+                              <span className="text-xs text-muted-foreground italic px-2">Your request — another reviewer must decide</span>
+                            )}
+                            {l.status === 'pending' && l.employee_id !== ownEmployeeId && (
                               <>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700" onClick={() => openReview(l, 'approved')}>
                                   <CheckCircle size={16} />
