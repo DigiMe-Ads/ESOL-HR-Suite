@@ -72,7 +72,11 @@ export function RouteGuard({ children }: RouteGuardProps) {
     }
   }, [user, profile, loading, location.pathname, navigate, isPublic]);
 
-  if (loading) {
+  // Don't mount a protected page (and fire its queries) while the redirect above is pending
+  const route = !isPublic ? findRouteConfig(location.pathname) : undefined;
+  const blocked = !isPublic && (!user || (profile && route && !hasRoutePermission(route, profile)));
+
+  if (loading || blocked) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
