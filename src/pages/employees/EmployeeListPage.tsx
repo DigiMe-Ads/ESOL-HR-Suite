@@ -14,8 +14,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { setEmploymentStatus } from '@/db/api';
-import { UserMinus, UserCheck } from 'lucide-react';
+import { setEmploymentStatus, getEmployeeFileUrls } from '@/db/api';
+import { EmployeeAvatar } from '@/components/employees/EmployeePhoto';
+import RemoveEmployeeDialog from '@/components/employees/RemoveEmployeeDialog';
+import { UserMinus, UserCheck, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type StatusFilter = 'all' | 'active' | 'resigned';
@@ -29,6 +31,9 @@ const EmployeeListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [confirmResign, setConfirmResign] = useState<Employee | null>(null);
   const [resignBusy, setResignBusy] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<Employee | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const isAdmin = profile?.role === 'admin';
 
   const debouncedSearch = useDebounce(search, 350);
   const [reloadKey, setReloadKey] = useState(0);
@@ -42,6 +47,8 @@ const EmployeeListPage: React.FC = () => {
       if (cancelled) return;
       setEmployees(list);
       setLoading(false);
+      // One batched request for all signed photo URLs
+      getEmployeeFileUrls(list.map(e => e.photo_path ?? '')).then(urls => { if (!cancelled) setPhotoUrls(urls); });
     });
     return () => { cancelled = true; };
   }, [debouncedSearch, reloadKey]);
@@ -129,7 +136,12 @@ const EmployeeListPage: React.FC = () => {
                   ) : filtered.map(emp => (
                     <tr key={emp.id} className={`border-b border-border hover:bg-muted/40 transition-colors ${emp.employment_status === 'resigned' ? 'opacity-60' : ''}`}>
                       <td className="px-6 py-3 font-mono text-xs text-foreground">{emp.employee_id}</td>
-                      <td className="px-6 py-3 font-medium text-foreground">{emp.full_name}</td>
+                      <td className="px-6 py-3 font-medium text-foreground">
+                        <div className="flex items-center gap-3">
+                          <EmployeeAvatar url={emp.photo_path ? photoUrls[emp.photo_path] : null} name={emp.full_name} className="h-8 w-8 text-[11px]" />
+                          {emp.full_name}
+                        </div>
+                      </td>
                       <td className="px-6 py-3 text-muted-foreground">{emp.designation}</td>
                       <td className="px-6 py-3">
                         <span className={`${
@@ -160,6 +172,11 @@ const EmployeeListPage: React.FC = () => {
                               {emp.employment_status === 'resigned' ? <UserCheck size={15} /> : <UserMinus size={15} />}
                             </Button>
                           )}
+                          {isAdmin && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" title="Remove employee" onClick={() => setRemoveTarget(emp)}>
+                              <Trash2 size={15} />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -170,6 +187,12 @@ const EmployeeListPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      <RemoveEmployeeDialog
+        employee={removeTarget}
+        onClose={() => setRemoveTarget(null)}
+        onRemoved={() => { setRemoveTarget(null); setReloadKey(k => k + 1); }}
+      />
 
       {/* Resign / Reactivate confirmation */}
       <AlertDialog open={confirmResign !== null} onOpenChange={open => { if (!open) setConfirmResign(null); }}>

@@ -4,10 +4,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getEmployee, getSalaryRecords, getLeaveRequests, setEmploymentStatus } from '@/db/api';
+import { getEmployee, getSalaryRecords, getLeaveRequests, setEmploymentStatus, getEmployeeFileUrls, missingProfileFields } from '@/db/api';
+import { EmployeeAvatar } from '@/components/employees/EmployeePhoto';
+import EmployeeDocuments from '@/components/employees/EmployeeDocuments';
+import RemoveEmployeeDialog from '@/components/employees/RemoveEmployeeDialog';
+import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Employee, SalaryRecord, LeaveRequest } from '@/types/types';
-import { ArrowLeft, Pencil, FileText, CalendarCheck, UserMinus, UserCheck } from 'lucide-react';
+import { ArrowLeft, Pencil, FileText, CalendarCheck, UserMinus, UserCheck, Trash2, AlertCircle } from 'lucide-react';
 import { formatLKR } from '@/lib/salaryCalc';
 
 const statusColor: Record<string, string> = {
@@ -25,6 +29,10 @@ const EmployeeDetailPage: React.FC = () => {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const canEdit = hasRoutePermission(routeConfigs.find(r => r.path === '/employees/new')!, profile);
+  const isAdmin = profile?.role === 'admin';
 
   const toggleResignation = async () => {
     if (!employee) return;
@@ -45,6 +53,10 @@ const EmployeeDetailPage: React.FC = () => {
         getLeaveRequests(id),
       ]);
       setEmployee(emp);
+      if (emp?.photo_path) {
+        const urls = await getEmployeeFileUrls([emp.photo_path]);
+        setPhotoUrl(urls[emp.photo_path] ?? null);
+      }
       setSalaries(sals);
       setLeaves(lvs);
       setLoading(false);
@@ -67,6 +79,7 @@ const EmployeeDetailPage: React.FC = () => {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" onClick={() => navigate('/employees')}><ArrowLeft size={18} /></Button>
+            <EmployeeAvatar url={photoUrl} name={employee.full_name} className="h-14 w-14 text-base" />
             <div>
               <h1 className="text-xl font-semibold text-foreground flex items-center gap-2 flex-wrap">
                 {employee.full_name}
@@ -77,21 +90,38 @@ const EmployeeDetailPage: React.FC = () => {
               <p className="text-sm text-muted-foreground">{employee.employee_id} · {employee.designation}</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => navigate(`/employees/${id}/edit`)}>
-              <Pencil size={15} className="mr-1.5" /> Edit
-            </Button>
+          <div className="flex flex-wrap gap-2">
+            {canEdit && (
+              <Button variant="secondary" onClick={() => navigate(`/employees/${id}/edit`)}>
+                <Pencil size={15} className="mr-1.5" /> Edit
+              </Button>
+            )}
             <Button onClick={() => navigate(`/salary/new?employeeId=${id}`)}>
               <FileText size={15} className="mr-1.5" /> Add Salary
             </Button>
-            {(profile?.role === 'admin' || profile?.role === 'hr_admin') && (
+            {canEdit && (
               <Button variant="outline" onClick={toggleResignation} disabled={statusBusy}>
                 {employee.employment_status === 'resigned' ? <UserCheck size={15} className="mr-1.5" /> : <UserMinus size={15} className="mr-1.5" />}
                 {statusBusy ? 'Processing...' : employee.employment_status === 'resigned' ? 'Reactivate' : 'Mark Resigned'}
               </Button>
             )}
+            {isAdmin && (
+              <Button variant="outline" className="text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => setRemoving(true)}>
+                <Trash2 size={15} className="mr-1.5" /> Remove
+              </Button>
+            )}
           </div>
         </div>
+
+        {missingProfileFields(employee).length > 0 && (
+          <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <p>
+              Missing details: <strong>{missingProfileFields(employee).join(', ')}</strong>.
+              {employee.profile_id ? ' The employee can complete these under My Profile.' : ' Link a portal login so the employee can complete them.'}
+            </p>
+          </div>
+        )}
 
         {/* Employee Info */}
         <Card className="overflow-hidden">
@@ -101,16 +131,20 @@ const EmployeeDetailPage: React.FC = () => {
             <InfoRow label="Full Name" value={employee.full_name} />
             <InfoRow label="First Name" value={employee.first_name ?? '—'} />
             <InfoRow label="Last Name" value={employee.last_name ?? '—'} />
+            <InfoRow label="NIC Number" value={employee.nic_number || '—'} />
             <InfoRow label="Email Address" value={employee.email ?? '—'} />
             <InfoRow label="Phone Number" value={employee.phone ?? '—'} />
             <InfoRow label="Designation" value={employee.designation} />
             <InfoRow label="Employment Start" value={employee.employment_commencement} />
-            <InfoRow label="Bank" value={employee.bank} />
-            <InfoRow label="Bank Branch" value={employee.bank_branch} />
-            <InfoRow label="Account Number" value={employee.bank_account_number} />
+            <InfoRow label="Bank" value={employee.bank || '—'} />
+            <InfoRow label="Bank Branch" value={employee.bank_branch || '—'} />
+            <InfoRow label="Account Number" value={employee.bank_account_number || '—'} />
+            <InfoRow label="Portal Login" value={employee.profile_id ? 'Linked' : 'Not linked'} />
             <InfoRow label="Employment Status" value={employee.employment_status === 'resigned' ? `Resigned${employee.resigned_at ? ` (${new Date(employee.resigned_at).toLocaleDateString('en-LK')})` : ''}` : 'Active'} />
           </CardContent>
         </Card>
+
+        <EmployeeDocuments employeeId={employee.id} canEdit={canEdit} description="Educational certificates, service letters and other documents uploaded by the employee or HR." />
 
         {/* Salary History */}
         <Card className="overflow-hidden">
@@ -190,6 +224,11 @@ const EmployeeDetailPage: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+      <RemoveEmployeeDialog
+        employee={removing ? employee : null}
+        onClose={() => setRemoving(false)}
+        onRemoved={() => navigate('/employees', { replace: true })}
+      />
     </AppLayout>
   );
 };

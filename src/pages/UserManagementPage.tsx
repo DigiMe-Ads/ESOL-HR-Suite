@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getAllProfiles, createUserAccount, resetUserPassword, getEmployees, updateEmployee, updateUserPermissions } from '@/db/api';
+import { getAllProfiles, createUserAccount, resetUserPassword, getEmployees, updateEmployee, updateUserPermissions, sendLoginEmail } from '@/db/api';
 import type { Profile, UserRole, Employee, Permission } from '@/types/types';
 import { PERMISSION_MODULES, ALL_PERMISSIONS, ROLE_PERMISSION_PRESETS } from '@/types/types';
 import { toast } from 'sonner';
@@ -165,7 +165,9 @@ const UserManagementPage: React.FC = () => {
 
     setShowCreate(false);
     setCreateForm({ ...EMPTY_CREATE });
-    toast.success('User account created successfully');
+    const mail = await sendLoginEmail(email);
+    if (mail.error) toast.warning(`Account created, but the login email could not be sent (${mail.error}). Share the temporary password instead.`);
+    else toast.success(`Account created — a set-password link was emailed to ${email.trim().toLowerCase()}`);
     load();
   };
 
@@ -203,6 +205,11 @@ const UserManagementPage: React.FC = () => {
     setResettingId(null);
     if (res.error || !res.data) {
       toast.error(res.error ?? 'Failed to reset password'); return;
+    }
+    if (p.email) {
+      const mail = await sendLoginEmail(p.email);
+      if (mail.error) toast.warning(`Password reset, but the email could not be sent (${mail.error}). Share the temporary password instead.`);
+      else toast.success(`A set-password link was emailed to ${p.email}`);
     }
     setTempCreds({
       name: p.full_name || 'Employee',

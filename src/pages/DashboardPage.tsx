@@ -4,12 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getDashboardStats, getSalaryRecords, getLeaveRequests } from '@/db/api';
+import { getDashboardStats, getSalaryRecords, getLeaveRequests, getEmployeeByProfileId, missingProfileFields } from '@/db/api';
 import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 import { formatLKR } from '@/lib/salaryCalc';
 import {
   Users, FileText, Clock, DollarSign, ChevronRight, TrendingUp, UserMinus, UserPlus, Wallet,
-  CalendarCheck, CalendarDays, CalendarPlus, Receipt, UserCog, Inbox,
+  CalendarCheck, CalendarDays, CalendarPlus, Receipt, UserCog, Inbox, UserRound,
 } from 'lucide-react';
 
 interface Stats { totalEmployees: number; activeEmployees: number; resignedEmployees: number; pendingLeaves: number; totalSalaryRecords: number; }
@@ -21,6 +21,7 @@ const DashboardPage: React.FC = () => {
   const [recentPayrolls, setRecentPayrolls] = useState<Array<{ id: string; payroll_month: string; net_pay: number; employee_id: string }>>([]);
   const [recentLeaves, setRecentLeaves] = useState<Array<{ id: string; leave_type: string; start_date: string; status: string; total_days: number }>>([]);
   const [loading, setLoading] = useState(true);
+  const [missingDetails, setMissingDetails] = useState<string[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -37,6 +38,8 @@ const DashboardPage: React.FC = () => {
           seeAllLeaves ? getLeaveRequests(undefined, 'pending') : seeOwnLeaves ? getLeaveRequests() : Promise.resolve([]),
         ]);
         setStats(s);
+        const ownRecord = profile ? await getEmployeeByProfileId(profile.id) : null;
+        setMissingDetails(ownRecord ? missingProfileFields(ownRecord) : []);
         setRecentPayrolls(salaries.slice(0, 5).map(r => ({ id: r.id, payroll_month: r.payroll_month, net_pay: r.net_pay, employee_id: r.employee_id })));
         setRecentLeaves(leaves.slice(0, 5).map(r => ({ id: r.id, leave_type: r.leave_type, start_date: r.start_date, status: r.status, total_days: r.total_days })));
       } finally { setLoading(false); }
@@ -115,6 +118,18 @@ const DashboardPage: React.FC = () => {
             )}
           </div>
         </div>
+
+        {missingDetails.length > 0 && (
+          <button type="button" onClick={() => navigate('/my-profile')}
+            className="w-full flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-50 p-4 text-left text-sm text-amber-900 transition-colors hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200">
+            <UserRound size={18} className="shrink-0" />
+            <span className="flex-1 min-w-0">
+              <span className="font-medium">Complete your profile</span>
+              <span className="block">Missing: {missingDetails.join(', ')}. You can also upload your certificates and service letters.</span>
+            </span>
+            <ChevronRight size={16} className="shrink-0" />
+          </button>
+        )}
 
         {/* Stat cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

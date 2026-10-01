@@ -23,9 +23,9 @@ const RULES = [
 
 const ChangePasswordPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, profile, refreshProfile } = useAuth();
-  // First login with a temporary password → standalone, no current password needed
-  const forced = profile?.must_change_password === true;
+  const { user, profile, refreshProfile, passwordRecovery, endPasswordRecovery } = useAuth();
+  // First login with a temporary password, or arriving from the emailed link → no current password needed
+  const forced = profile?.must_change_password === true || passwordRecovery;
 
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
@@ -72,6 +72,7 @@ const ChangePasswordPage: React.FC = () => {
       }
     }
     if (forced) await refreshProfile();
+    endPasswordRecovery();
     setLoading(false);
     setCurrent(''); setPassword(''); setConfirm('');
     toast.success('Password updated successfully');
@@ -124,7 +125,9 @@ const ChangePasswordPage: React.FC = () => {
             <BrandLogo className="w-[220px] mb-8" />
             <h1 className="text-2xl font-bold tracking-tight">Set a new password</h1>
             <p className="mt-2 text-sm text-muted-foreground max-w-sm">
-              Your account uses a temporary password. Create your own password to continue.
+              {profile?.must_change_password
+                ? 'Welcome to the ESOL Premier Campus portal. Choose your own password to continue.'
+                : 'Choose a new password for your account.'}
             </p>
           </div>
           <Card className="shadow-hover">

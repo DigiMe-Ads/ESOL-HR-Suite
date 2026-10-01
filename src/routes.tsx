@@ -15,6 +15,7 @@ import LeaveRequestsPage from './pages/leave/LeaveRequestsPage';
 import LeaveConfigPage from './pages/leave/LeaveConfigPage';
 import UserManagementPage from './pages/UserManagementPage';
 import ForbiddenPage from './pages/ForbiddenPage';
+import MyProfilePage from './pages/MyProfilePage';
 
 import type { Permission, Profile } from '@/types/types';
 
@@ -27,7 +28,7 @@ export function hasRoutePermission(route: RouteConfig, profile: Profile | null):
 }
 
 // First page a user may actually open (fallback when /dashboard is not granted)
-const LANDING_PRIORITY: string[] = ['/dashboard', '/salary-slips', '/salary-history', '/salary/new', '/employees', '/leave-requests', '/my-leaves', '/users', '/change-password'];
+const LANDING_PRIORITY: string[] = ['/dashboard', '/salary-slips', '/salary-history', '/salary/new', '/employees', '/leave-requests', '/my-leaves', '/users', '/my-profile', '/change-password'];
 
 export function getFirstPermittedPath(profile: Profile | null): string {
   if (!profile) return '/403';
@@ -54,6 +55,7 @@ export const routes: RouteConfig[] = [
   { name: 'Access Denied', path: '/403', element: <ForbiddenPage />, visible: false },
   { name: 'Change Password', path: '/change-password', element: <ChangePasswordPage /> },
   { name: 'Dashboard', path: '/dashboard', element: <DashboardPage />, permission: 'dashboard' },
+  { name: 'My Profile', path: '/my-profile', element: <MyProfilePage /> },
 
   // Employee management
   { name: 'Employees', path: '/employees', element: <EmployeeListPage />, permission: 'employees' },

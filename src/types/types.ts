@@ -60,6 +60,10 @@ export interface Employee {
   bank: string;
   bank_branch: string;
   bank_account_number: string;
+  /** Sri Lankan NIC (old 9 digits + V/X, or new 12 digits) */
+  nic_number: string | null;
+  /** Storage path in the private employee-files bucket */
+  photo_path: string | null;
   employment_status: EmploymentStatus;
   resigned_at: string | null;
   profile_id: string | null;
@@ -153,4 +157,25 @@ export interface SalaryCalcResult {
   stampDuty: number;
   totalDeductions: number;
   netPay: number;
+}
+
+export type EmployeeDocumentType = 'education' | 'service_letter' | 'other';
+
+export const DOCUMENT_TYPE_LABELS: Record<EmployeeDocumentType, string> = {
+  education: 'Educational certificate',
+  service_letter: 'Service letter',
+  other: 'Other document',
+};
+
+export interface EmployeeDocument {
+  id: string;
+  employee_id: string;
+  doc_type: EmployeeDocumentType;
+  title: string;
+  file_path: string;
+  file_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  uploaded_by: string | null;
+  created_at: string;
 }

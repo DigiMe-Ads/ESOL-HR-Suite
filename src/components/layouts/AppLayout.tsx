@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   LayoutDashboard, Users, Wallet, FileText, CalendarCheck, CalendarDays, Settings2,
-  LogOut, Menu, UserCog, Receipt, KeyRound, ChevronsUpDown, CalendarClock,
+  LogOut, Menu, UserCog, Receipt, KeyRound, ChevronsUpDown, CalendarClock, UserRound,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrandMark, CREST_URL } from '@/components/common/BrandLogo';
@@ -29,6 +29,7 @@ interface NavItem {
 const navGroups: Array<{ title: string; items: NavItem[] }> = [
   { title: 'Overview', items: [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { label: 'My Profile', path: '/my-profile', icon: UserRound },
   ] },
   { title: 'People', items: [
     { label: 'Employees', path: '/employees', icon: Users },
@@ -107,6 +108,9 @@ const UserMenu: React.FC<{ variant: 'sidebar' | 'header' }> = ({ variant }) => {
           <span className="pill pill-info mt-2 normal-case">{role}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => navigate('/my-profile')} className="cursor-pointer">
+          <UserRound size={15} /> My profile & documents
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => navigate('/change-password')} className="cursor-pointer">
           <KeyRound size={15} /> Change password
         </DropdownMenuItem>

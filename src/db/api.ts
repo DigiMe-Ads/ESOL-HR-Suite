@@ -1,5 +1,5 @@
 import { supabase } from '@/db/supabase';
-import type { Employee, SalaryRecord, LeaveRequest, LeaveTypeConfig, Profile, UserRole, LeaveType, Permission } from '@/types/types';
+import type { Employee, SalaryRecord, LeaveRequest, LeaveTypeConfig, Profile, UserRole, LeaveType, Permission, EmployeeDocument, EmployeeDocumentType } from '@/types/types';
 import { round2 } from '@/lib/salaryCalc';
 
 type DbError = { code?: string; message: string } | null;
@@ -183,9 +183,9 @@ export async function getEmployeeByProfileId(profileId: string): Promise<Employe
 
 export async function createEmployee(
   emp: Omit<Employee, 'id' | 'created_at' | 'updated_at' | 'resigned_at' | 'employment_status' | 'created_by'> & { created_by: string }
-): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('employees').insert(emp);
-  return { error: friendlyDbError(error) };
+): Promise<{ id: string | null; error: string | null }> {
+  const { data, error } = await supabase.from('employees').insert(emp).select('id').single();
+  return { id: data?.id ?? null, error: friendlyDbError(error) };
 }
 
 export async function updateEmployee(id: string, updates: Partial<Employee>): Promise<{ error: string | null }> {
@@ -207,6 +207,131 @@ export async function getLinkableProfiles(): Promise<LinkableProfile[]> {
   // Before migration 00016 only admins can list profiles
   const profiles = await getAllProfiles();
   return profiles.filter(p => p.role !== 'admin').map(p => ({ id: p.id, full_name: p.full_name, email: p.email, role: p.role }));
+}
+
+// =================== EMPLOYEE FILES (private bucket: <employee_id>/photo|docs/...) ===================
+export const EMPLOYEE_FILES_BUCKET = 'employee-files';
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const DOCUMENT_MIME_TYPES = [
+  ...PHOTO_MIME_TYPES, 'application/pdf', 'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
+
+const safeFileName = (name: string) => name.normalize('NFKD').replace(/[^\w.-]+/g, '_').replace(/_+/g, '_').slice(-80) || 'file';
+
+export function validateUpload(file: File, allowed: string[]): string | null {
+  if (!allowed.includes(file.type)) return 'This file type is not allowed.';
+  if (file.size > MAX_UPLOAD_BYTES) return 'Files must be 10 MB or smaller.';
+  return null;
+}
+
+async function uploadEmployeeFile(path: string, file: File): Promise<{ error: string | null }> {
+  const { error } = await supabase.storage.from(EMPLOYEE_FILES_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+  return { error: error ? error.message : null };
+}
+
+/** Uploads a profile photo and returns its storage path (the caller saves it on the employee) */
+export async function uploadEmployeePhoto(employeeId: string, file: File): Promise<{ path: string | null; error: string | null }> {
+  const invalid = validateUpload(file, PHOTO_MIME_TYPES);
+  if (invalid) return { path: null, error: invalid };
+  const ext = file.type.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+  const path = `${employeeId}/photo/${crypto.randomUUID()}.${ext}`;
+  const { error } = await uploadEmployeeFile(path, file);
+  return error ? { path: null, error } : { path, error: null };
+}
+
+/** Short-lived signed URLs for private files, keyed by path */
+export async function getEmployeeFileUrls(paths: string[], expiresIn = 3600): Promise<Record<string, string>> {
+  const unique = [...new Set(paths.filter(Boolean))];
+  if (!unique.length) return {};
+  const { data } = await supabase.storage.from(EMPLOYEE_FILES_BUCKET).createSignedUrls(unique, expiresIn);
+  return Object.fromEntries((data ?? []).filter(d => d.signedUrl && d.path).map(d => [d.path as string, d.signedUrl]));
+}
+
+export async function removeEmployeeFiles(paths: string[]): Promise<void> {
+  if (paths.length) await supabase.storage.from(EMPLOYEE_FILES_BUCKET).remove(paths);
+}
+
+export async function listEmployeeDocuments(employeeId: string): Promise<EmployeeDocument[]> {
+  const { data } = await supabase.from('employee_documents').select('*').eq('employee_id', employeeId).order('created_at', { ascending: false });
+  return Array.isArray(data) ? data : [];
+}
+
+export async function uploadEmployeeDocument(
+  employeeId: string, file: File, docType: EmployeeDocumentType, title: string,
+): Promise<{ error: string | null }> {
+  const invalid = validateUpload(file, DOCUMENT_MIME_TYPES);
+  if (invalid) return { error: invalid };
+  const path = `${employeeId}/docs/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+  const up = await uploadEmployeeFile(path, file);
+  if (up.error) return up;
+  const { error } = await supabase.from('employee_documents').insert({
+    employee_id: employeeId, doc_type: docType, title: title.trim() || file.name,
+    file_path: path, file_name: file.name, mime_type: file.type, size_bytes: file.size,
+  });
+  if (error) {
+    await removeEmployeeFiles([path]); // don't leave an orphaned file behind
+    return { error: friendlyDbError(error) };
+  }
+  return { error: null };
+}
+
+export async function deleteEmployeeDocument(doc: EmployeeDocument): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('employee_documents').delete().eq('id', doc.id);
+  if (error) return { error: friendlyDbError(error) };
+  await removeEmployeeFiles([doc.file_path]);
+  return { error: null };
+}
+
+/** Employee self-service: phone/photo any time; NIC and bank details only while missing (enforced server-side) */
+export async function updateMyEmployeeProfile(fields: {
+  phone?: string; nic_number?: string; bank?: string; bank_branch?: string; bank_account_number?: string; photo_path?: string;
+}): Promise<{ data: Employee | null; error: string | null }> {
+  const { data, error } = await supabase.rpc('update_my_employee_profile', {
+    p_phone: fields.phone ?? null,
+    p_nic_number: fields.nic_number ?? null,
+    p_bank: fields.bank ?? null,
+    p_bank_branch: fields.bank_branch ?? null,
+    p_bank_account_number: fields.bank_account_number ?? null,
+    p_photo_path: fields.photo_path ?? null,
+  });
+  if (error) return { data: null, error: error.message };
+  return { data: data as Employee, error: null };
+}
+
+/** Details an employee should complete themselves */
+export function missingProfileFields(emp: Employee): string[] {
+  const missing: string[] = [];
+  if (!emp.photo_path) missing.push('Profile photo');
+  if (!emp.nic_number) missing.push('NIC number');
+  if (!emp.phone) missing.push('Phone number');
+  if (!emp.bank || !emp.bank_branch || !emp.bank_account_number) missing.push('Bank details');
+  return missing;
+}
+
+/** Admin only: removes the employee (salary, leave and documents cascade) and optionally their login */
+export async function adminDeleteEmployee(
+  employeeId: string, deleteLogin: boolean,
+): Promise<{ login: 'deleted' | 'disabled' | 'kept' | 'none' | null; error: string | null }> {
+  // Collect file paths first — after the delete the rows are gone
+  const docs = await listEmployeeDocuments(employeeId);
+  const emp = await getEmployee(employeeId);
+  const { data, error } = await supabase.rpc('admin_delete_employee', { p_employee_id: employeeId, p_delete_login: deleteLogin });
+  if (error) return { login: null, error: error.message };
+  await removeEmployeeFiles([...docs.map(d => d.file_path), ...(emp?.photo_path ? [emp.photo_path] : [])]);
+  return { login: (data as { login: 'deleted' | 'disabled' | 'kept' | 'none' }).login, error: null };
+}
+
+/**
+ * Emails the user a secure link to set their password (Supabase Auth "Reset password" email).
+ * Delivery needs SMTP configured in Supabase → Authentication → Emails.
+ */
+export async function sendLoginEmail(email: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    redirectTo: `${window.location.origin}/change-password`,
+  });
+  return { error: error ? error.message : null };
 }
 
 // Mark an employee as resigned/reactivated and disable/enable their platform login
