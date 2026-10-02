@@ -1,5 +1,8 @@
 import { supabase } from '@/db/supabase';
-import type { Employee, SalaryRecord, LeaveRequest, LeaveTypeConfig, Profile, UserRole, LeaveType, Permission, EmployeeDocument, EmployeeDocumentType } from '@/types/types';
+import type {
+  Employee, SalaryRecord, LeaveRequest, LeaveTypeConfig, Profile, UserRole, LeaveType, Permission, EmployeeDocument, EmployeeDocumentType,
+  SalarySlipRequest, SlipRequestStatus, AppNotification, EmployeeLeaveGrant, GrantedLeaveType,
+} from '@/types/types';
 import { round2 } from '@/lib/salaryCalc';
 
 type DbError = { code?: string; message: string } | null;
@@ -507,6 +510,61 @@ export async function reviewLeaveRequest(
     reviewed_at: new Date().toISOString(),
   }).eq('id', id).eq('status', 'pending');
   return { error: friendlyDbError(legacyErr) };
+}
+
+// =================== SALARY SLIP REQUESTS ===================
+// Employees request a printed slip; payroll staff mark it ready for pickup (the employee is notified)
+export async function requestSalarySlip(salaryRecordId: string, note?: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc('request_salary_slip', { p_salary_record_id: salaryRecordId, p_note: note?.trim() || null });
+  return { error: error ? error.message : null };
+}
+
+export async function getSlipRequests(employeeId?: string): Promise<SalarySlipRequest[]> {
+  let query = supabase.from('salary_slip_requests').select('*').order('created_at', { ascending: false }).limit(500);
+  if (employeeId) query = query.eq('employee_id', employeeId);
+  const { data } = await query;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function updateSlipRequest(id: string, status: Exclude<SlipRequestStatus, 'pending'>, adminNote?: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc('update_salary_slip_request', { p_request_id: id, p_status: status, p_admin_note: adminNote?.trim() || null });
+  return { error: error ? error.message : null };
+}
+
+export async function cancelSlipRequest(id: string): Promise<{ error: string | null }> {
+  const { data, error } = await supabase.from('salary_slip_requests').delete().eq('id', id).eq('status', 'pending').select('id');
+  if (error) return { error: friendlyDbError(error) };
+  if (!data?.length) return { error: 'This request can no longer be cancelled.' };
+  return { error: null };
+}
+
+// =================== NOTIFICATIONS ===================
+export async function getNotifications(limit = 30): Promise<AppNotification[]> {
+  const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(limit);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function markNotificationsRead(ids: string[]): Promise<void> {
+  if (ids.length) await supabase.from('notifications').update({ read_at: new Date().toISOString() }).in('id', ids).is('read_at', null);
+}
+
+export async function dismissNotification(id: string): Promise<void> {
+  await supabase.from('notifications').delete().eq('id', id);
+}
+
+// =================== LEAVE GRANTS (maternity / paternity per employee) ===================
+export async function getLeaveGrants(employeeId?: string): Promise<EmployeeLeaveGrant[]> {
+  let query = supabase.from('employee_leave_grants').select('*');
+  if (employeeId) query = query.eq('employee_id', employeeId);
+  const { data } = await query;
+  return Array.isArray(data) ? data : [];
+}
+
+export async function setLeaveGrant(employeeId: string, leaveType: GrantedLeaveType, granted: boolean): Promise<{ error: string | null }> {
+  const { error } = granted
+    ? await supabase.from('employee_leave_grants').upsert({ employee_id: employeeId, leave_type: leaveType }, { onConflict: 'employee_id,leave_type', ignoreDuplicates: true })
+    : await supabase.from('employee_leave_grants').delete().eq('employee_id', employeeId).eq('leave_type', leaveType);
+  return { error: friendlyDbError(error) };
 }
 
 // =================== USER MANAGEMENT ===================

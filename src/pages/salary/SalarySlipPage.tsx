@@ -8,6 +8,8 @@ import { formatLKR, round2 } from '@/lib/salaryCalc';
 import { generateSlipPdf } from '@/lib/slipPdf';
 import { ArrowLeft, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { hasRoutePermission, routes as routeConfigs } from '@/routes';
 
 const LOGO_URL = '/esol_logo.png';
 const COMPANY_NAME = 'ESOL Premier Campus (Pvt) Limited';
@@ -114,6 +116,9 @@ const SalarySlipPage: React.FC = () => {
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const { profile } = useAuth();
+  // Payroll staff can download; employees viewing their own slip can only view it (printed copies come from HR)
+  const canDownload = hasRoutePermission(routeConfigs.find(r => r.path === '/salary/new')!, profile);
 
   useEffect(() => {
     (async () => {
@@ -162,12 +167,23 @@ const SalarySlipPage: React.FC = () => {
               <p className="text-sm text-muted-foreground">{employee.full_name} — {record.payroll_month}</p>
             </div>
           </div>
-          <Button onClick={handleDownload} disabled={downloading} className="shrink-0">
-            <Download size={16} className="mr-1.5" />
-            {downloading ? 'Preparing...' : 'Download PDF'}
-          </Button>
+          {canDownload ? (
+            <Button onClick={handleDownload} disabled={downloading} className="shrink-0">
+              <Download size={16} className="mr-1.5" />
+              {downloading ? 'Preparing...' : 'Download PDF'}
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => navigate('/salary-slips')} className="shrink-0">
+              Request a printed copy from HR
+            </Button>
+          )}
         </div>
-        <div className="bg-white border border-border rounded-lg shadow-card p-2 md:p-6">
+        {!canDownload && (
+          <p className="print-only hidden text-center text-sm">
+            Printing is not available. Please request a printed salary slip from HR through the portal.
+          </p>
+        )}
+        <div className={`bg-white border border-border rounded-lg shadow-card p-2 md:p-6 ${canDownload ? '' : 'no-print select-none'}`}>
           <SlipContent record={record} employee={employee} />
         </div>
       </div>

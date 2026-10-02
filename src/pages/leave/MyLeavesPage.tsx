@@ -4,10 +4,10 @@ import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getLeaveRequests, getEmployeeByProfileId, withdrawLeaveRequest, getLeaveTypeConfigs } from '@/db/api';
+import { getLeaveRequests, getEmployeeByProfileId, withdrawLeaveRequest, getLeaveTypeConfigs, getLeaveGrants } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { LeaveRequest, Employee, LeaveType } from '@/types/types';
-import { remainingDays, entitlementFor, policyFromConfig, DEFAULT_POLICY } from '@/lib/leavePolicy';
+import { remainingDays, entitlementFor, policyFromConfig, availableLeaveTypes, DEFAULT_POLICY } from '@/lib/leavePolicy';
 import type { LeavePolicy } from '@/lib/leavePolicy';
 import { Plus, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,6 +35,7 @@ const MyLeavesPage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [loading, setLoading] = useState(true);
   const [policy, setPolicy] = useState<LeavePolicy>(DEFAULT_POLICY);
+  const [grantedTypes, setGrantedTypes] = useState<LeaveType[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -43,6 +44,7 @@ const MyLeavesPage: React.FC = () => {
       if (configs.length) setPolicy(policyFromConfig(configs));
       if (emp) {
         setEmployee(emp);
+        setGrantedTypes((await getLeaveGrants(emp.id)).map(g => g.leave_type));
         setLeaves(await getLeaveRequests(emp.id));
       }
       setLoading(false);
@@ -65,12 +67,13 @@ const MyLeavesPage: React.FC = () => {
   const balances = useMemo(() => {
     if (!employee) return null;
     const year = new Date().getFullYear();
-    return BALANCE_ROWS.filter(r => !policy.inactive.includes(r.type)).map(r => ({
+    const allowed = availableLeaveTypes(BALANCE_ROWS.map(r => r.type), policy, grantedTypes);
+    return BALANCE_ROWS.filter(r => allowed.includes(r.type)).map(r => ({
       ...r,
       entitlement: entitlementFor(r.type, employee.employment_commencement, new Date(), policy),
       remaining: remainingDays(r.type, employee.employment_commencement, leaves, year, policy),
     }));
-  }, [employee, leaves, policy]);
+  }, [employee, leaves, policy, grantedTypes]);
 
   return (
     <AppLayout>

@@ -75,7 +75,7 @@ const DashboardPage: React.FC = () => {
     { show: can('/users'), label: 'Manage users', desc: 'Access & permissions', path: '/users', icon: UserCog },
   ] : [
     { show: can('/my-leaves/apply'), label: 'Apply for leave', desc: 'Submit a new request', path: '/my-leaves/apply', icon: CalendarPlus },
-    { show: can('/salary-slips'), label: 'My salary slips', desc: 'View and download payslips', path: '/salary-slips', icon: Receipt },
+    { show: can('/salary-slips'), label: 'My salary slips', desc: 'View payslips & request printed copies', path: '/salary-slips', icon: Receipt },
     { show: can('/salary-history'), label: 'Salary history', desc: 'Past payroll records', path: '/salary-history', icon: FileText },
   ];
   const visibleActions = quickActions.filter(a => a.show);

@@ -38,7 +38,10 @@ function findRouteConfig(path: string) {
 }
 
 export function RouteGuard({ children }: RouteGuardProps) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading: authLoading, profileReady } = useAuth();
+  // Wait for the signed-in user's own profile; deciding with a missing or previous user's profile
+  // sent people to Access Denied when switching accounts
+  const loading = authLoading || !profileReady;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -54,7 +57,11 @@ export function RouteGuard({ children }: RouteGuardProps) {
     // A signed-in user has nothing to do on public pages (fixes the "must refresh after login" issue).
     // /403 is excluded so the Access Denied notice is actually shown.
     if (user && isPublic && location.pathname !== '/403') {
-      navigate(getFirstPermittedPath(profile), { replace: true });
+      // Return to the page that required sign-in, but only if this account may open it
+      const from = (location.state as { from?: string } | null)?.from;
+      const fromRoute = from ? findRouteConfig(from) : undefined;
+      const target = from && fromRoute && hasRoutePermission(fromRoute, profile) ? from : getFirstPermittedPath(profile);
+      navigate(target, { replace: true });
       return;
     }
     // Temporary password: force a password change before anything else
@@ -70,7 +77,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
         return;
       }
     }
-  }, [user, profile, loading, location.pathname, navigate, isPublic]);
+  }, [user, profile, loading, location.pathname, location.state, navigate, isPublic]);
 
   // Don't mount a protected page (and fire its queries) while the redirect above is pending
   const route = !isPublic ? findRouteConfig(location.pathname) : undefined;

@@ -9,6 +9,8 @@ import { getLeaveTypeConfigs, updateLeaveTypeConfig } from '@/db/api';
 import type { LeaveTypeConfig } from '@/types/types';
 import { toast } from 'sonner';
 import { Save, Scale } from 'lucide-react';
+import EmployeeEntitlements from '@/components/leave/EmployeeEntitlements';
+import { policyFromConfig } from '@/lib/leavePolicy';
 
 const LeaveConfigPage: React.FC = () => {
   const [configs, setConfigs] = useState<LeaveTypeConfig[]>([]);
@@ -37,7 +39,7 @@ const LeaveConfigPage: React.FC = () => {
 
   return (
     <AppLayout>
-      <div className="p-6 md:p-8 space-y-6 max-w-2xl">
+      <div className="p-6 md:p-8 space-y-6 max-w-5xl">
         <div>
           <h1 className="page-title">Leave Configuration</h1>
           <p className="page-subtitle">Configure leave types and annual entitlements</p>
@@ -104,6 +106,8 @@ const LeaveConfigPage: React.FC = () => {
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
+
+        {!loading && <EmployeeEntitlements policy={policyFromConfig(configs)} />}
       </div>
     </AppLayout>
   );

@@ -9,6 +9,19 @@ export const PATERNITY_ENTITLEMENT = 3;
 export const OTHER_ENTITLEMENT = 3;
 export const ANNUAL_MIN_CONSECUTIVE = 7;
 
+/** Leave types an admin enables per employee (Leave Configuration → Employee entitlements) */
+export const GRANTED_LEAVE_TYPES: LeaveType[] = ['maternity', 'paternity'];
+
+/** Leave types this employee may apply for: everything active, except maternity/paternity unless granted */
+export function availableLeaveTypes(all: LeaveType[], policy: LeavePolicy, grantedTypes: LeaveType[]): LeaveType[] {
+  return all.filter(t => !policy.inactive.includes(t) && (!GRANTED_LEAVE_TYPES.includes(t) || grantedTypes.includes(t)));
+}
+
+/** "Year 1", "Year 2"… of service, as used by the annual/casual rules */
+export function serviceYearLabel(commencement: string, asOf: Date = new Date()): string {
+  return `Year ${completedYears(commencement, asOf) + 1}`;
+}
+
 /** Full-year entitlements and active leave types, maintained on the Leave Configuration page */
 export interface LeavePolicy {
   annual: number;
@@ -141,12 +154,17 @@ export function validateLeaveRequest(params: {
   startDate?: string;
   endDate?: string;
   policy?: LeavePolicy;
+  /** Maternity/paternity grants for this employee; when given, ungranted types are rejected */
+  grantedTypes?: LeaveType[];
 }): { ok: boolean; error?: string } {
-  const { type, totalDays, commencement, leaves, startDate, endDate, policy = DEFAULT_POLICY } = params;
+  const { type, totalDays, commencement, leaves, startDate, endDate, policy = DEFAULT_POLICY, grantedTypes } = params;
   // Balances belong to the calendar year the leave starts in
   const year = startDate ? parseLocalDate(startDate).getFullYear() : new Date().getFullYear();
   if (totalDays <= 0) return { ok: false, error: 'End date must be on or after start date' };
   if (policy.inactive.includes(type)) return { ok: false, error: 'This leave type is currently not available. Contact HR.' };
+  if (grantedTypes && GRANTED_LEAVE_TYPES.includes(type) && !grantedTypes.includes(type)) {
+    return { ok: false, error: `${type === 'maternity' ? 'Maternity' : 'Paternity'} leave has not been enabled for you. Please contact HR.` };
+  }
 
   if (startDate && endDate) {
     const clash = leaves.find(l => l.status !== 'rejected' && l.start_date <= endDate && l.end_date >= startDate);

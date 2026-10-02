@@ -9,6 +9,8 @@ interface AuthContextValue {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  /** True once the loaded profile belongs to the signed-in user (false while switching accounts) */
+  profileReady: boolean;
   /** True after arriving through an emailed "set your password" link */
   passwordRecovery: boolean;
   endPasswordRecovery: () => void;
@@ -22,6 +24,7 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   profile: null,
   loading: true,
+  profileReady: false,
   passwordRecovery: false,
   endPasswordRecovery: () => {},
   signOut: async () => {},
@@ -34,12 +37,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileFor, setProfileFor] = useState<string | null>(null);
   // Supabase strips the link token from the URL, so remember the recovery state on first load
   const [passwordRecovery, setPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery'));
 
   const fetchProfile = useCallback(async (uid: string) => {
     const p = await getProfile(uid);
     setProfile(p);
+    setProfileFor(uid);
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -60,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
+      else { setProfile(null); setProfileFor(null); }
     });
     return () => subscription.unsubscribe();
   }, [fetchProfile]);
@@ -77,11 +82,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setUser(null);
     setProfile(null);
+    setProfileFor(null);
     setPasswordRecovery(false);
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, passwordRecovery, endPasswordRecovery: () => setPasswordRecovery(false), signOut, refreshProfile, hasPermission }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, profileReady: !user || profileFor === user.id, passwordRecovery, endPasswordRecovery: () => setPasswordRecovery(false), signOut, refreshProfile, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

@@ -16,6 +16,7 @@ import LeaveConfigPage from './pages/leave/LeaveConfigPage';
 import UserManagementPage from './pages/UserManagementPage';
 import ForbiddenPage from './pages/ForbiddenPage';
 import MyProfilePage from './pages/MyProfilePage';
+import SlipRequestsPage from './pages/salary/SlipRequestsPage';
 
 import type { Permission, Profile } from '@/types/types';
 
@@ -68,6 +69,7 @@ export const routes: RouteConfig[] = [
   { name: 'Edit Salary', path: '/salary/:id/edit', element: <SalaryFormPage />, permission: 'salary_management', roles: ['admin', 'hr_admin', 'finance'] },
   { name: 'Salary Slip', path: '/salary/:id/slip', element: <SalarySlipPage />, permission: 'salary_slips' },
   { name: 'Salary Slips', path: '/salary-slips', element: <SalarySlipsPage />, permission: 'salary_slips' },
+  { name: 'Slip Requests', path: '/slip-requests', element: <SlipRequestsPage />, permission: 'salary_slips', roles: ['admin', 'hr_admin', 'finance', 'manager'] },
   { name: 'Salary History', path: '/salary-history', element: <SalaryHistoryPage />, permission: 'salary_management' },
 
   // Leave management

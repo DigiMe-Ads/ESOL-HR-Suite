@@ -64,9 +64,8 @@ const LoginPage: React.FC = () => {
       toast.error('Invalid email/username or password');
       return;
     }
-    // RouteGuard forces a password change if the account still uses a temporary password.
-    const from = (location.state as { from?: string } | null)?.from;
-    navigate(from ?? '/dashboard', { replace: true });
+    // RouteGuard redirects once this account's profile has loaded (to the requested page if permitted,
+    // otherwise the first page this account may open, or the forced password change).
   };
 
   const handleReset = async (e: React.FormEvent) => {
@@ -95,7 +94,6 @@ const LoginPage: React.FC = () => {
       toast.error('Password changed, but sign-in failed. Please sign in manually.');
       return;
     }
-    navigate('/dashboard', { replace: true });
   };
 
   const switchMode = (next: Mode) => {

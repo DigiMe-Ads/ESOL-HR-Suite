@@ -179,3 +179,46 @@ export interface EmployeeDocument {
   uploaded_by: string | null;
   created_at: string;
 }
+
+export type SlipRequestStatus = 'pending' | 'ready' | 'collected' | 'declined';
+
+export const SLIP_REQUEST_LABELS: Record<SlipRequestStatus, string> = {
+  pending: 'Requested',
+  ready: 'Ready for pickup',
+  collected: 'Collected',
+  declined: 'Declined',
+};
+
+export interface SalarySlipRequest {
+  id: string;
+  employee_id: string;
+  salary_record_id: string;
+  payroll_month: string;
+  note: string | null;
+  status: SlipRequestStatus;
+  admin_note: string | null;
+  handled_by: string | null;
+  handled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppNotification {
+  id: string;
+  profile_id: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+/** Leave types that are only available to employees an admin has selected */
+export type GrantedLeaveType = 'maternity' | 'paternity';
+
+export interface EmployeeLeaveGrant {
+  employee_id: string;
+  leave_type: GrantedLeaveType;
+  granted_by: string | null;
+  created_at: string;
+}

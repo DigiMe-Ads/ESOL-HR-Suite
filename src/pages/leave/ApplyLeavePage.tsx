@@ -7,10 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createLeaveRequest, getEmployeeByProfileId, getLeaveRequests, getLeaveTypeConfigs } from '@/db/api';
+import { createLeaveRequest, getEmployeeByProfileId, getLeaveRequests, getLeaveTypeConfigs, getLeaveGrants } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { LeaveType, Employee, LeaveRequest } from '@/types/types';
-import { validateLeaveRequest, remainingDays, entitlementFor, countLeaveDays, policyFromConfig, DEFAULT_POLICY } from '@/lib/leavePolicy';
+import { validateLeaveRequest, remainingDays, entitlementFor, countLeaveDays, policyFromConfig, availableLeaveTypes, DEFAULT_POLICY } from '@/lib/leavePolicy';
 import type { LeavePolicy } from '@/lib/leavePolicy';
 import { toast } from 'sonner';
 import { ArrowLeft, Info } from 'lucide-react';
@@ -34,6 +34,7 @@ const ApplyLeavePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [policy, setPolicy] = useState<LeavePolicy>(DEFAULT_POLICY);
+  const [grantedTypes, setGrantedTypes] = useState<LeaveType[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +43,7 @@ const ApplyLeavePage: React.FC = () => {
       if (configs.length) setPolicy(policyFromConfig(configs));
       if (emp) {
         setEmployee(emp);
+        setGrantedTypes((await getLeaveGrants(emp.id)).map(g => g.leave_type));
         setLeaves(await getLeaveRequests(emp.id));
       }
       setLoading(false);
@@ -49,7 +51,11 @@ const ApplyLeavePage: React.FC = () => {
   }, [profile]);
 
   const totalDays = countLeaveDays(form.start_date, form.end_date);
-  const leaveTypes = useMemo(() => LEAVE_TYPE_ORDER.filter(t => !policy.inactive.includes(t.value)), [policy]);
+  // Maternity/paternity only appear for employees HR has enabled them for
+  const leaveTypes = useMemo(() => {
+    const allowed = availableLeaveTypes(LEAVE_TYPE_ORDER.map(t => t.value), policy, grantedTypes);
+    return LEAVE_TYPE_ORDER.filter(t => allowed.includes(t.value));
+  }, [policy, grantedTypes]);
 
   const balances = useMemo(() => {
     if (!employee) return null;
@@ -73,8 +79,9 @@ const ApplyLeavePage: React.FC = () => {
       startDate: form.start_date,
       endDate: form.end_date,
       policy,
+      grantedTypes,
     });
-  }, [employee, form.leave_type, form.start_date, form.end_date, totalDays, leaves, policy]);
+  }, [employee, form.leave_type, form.start_date, form.end_date, totalDays, leaves, policy, grantedTypes]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +96,7 @@ const ApplyLeavePage: React.FC = () => {
       startDate: form.start_date,
       endDate: form.end_date,
       policy,
+      grantedTypes,
     });
     if (!check.ok) { toast.error(check.error); return; }
     setSaving(true);

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, FileText, Paperclip, Trash2, Upload } from 'lucide-react';
+import { Download, FileText, Paperclip, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,13 @@ const formatSize = (bytes: number | null) => {
   return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 };
 
+// One pending upload row (like the allowance rows on the salary form)
+interface UploadRow { key: string; docType: EmployeeDocumentType; title: string; file: File | null }
+const stripExt = (name: string) => name.replace(/\.[^.]+$/, '');
+const newRow = (file: File | null = null, docType: EmployeeDocumentType = 'education'): UploadRow => ({
+  key: crypto.randomUUID(), docType, file, title: file ? stripExt(file.name) : '',
+});
+
 interface Props {
   employeeId: string;
   /** Employees manage their own documents; Admin/HR manage everyone's */
@@ -33,12 +40,11 @@ interface Props {
 const EmployeeDocuments: React.FC<Props> = ({ employeeId, canEdit, description }) => {
   const [docs, setDocs] = useState<EmployeeDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [docType, setDocType] = useState<EmployeeDocumentType>('education');
-  const [title, setTitle] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [rows, setRows] = useState<UploadRow[]>([]);
   const [uploading, setUploading] = useState(false);
   const [toDelete, setToDelete] = useState<EmployeeDocument | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const multiInputRef = useRef<HTMLInputElement>(null);
+  const rowInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,23 +54,47 @@ const EmployeeDocuments: React.FC<Props> = ({ employeeId, canEdit, description }
 
   useEffect(() => { load(); }, [load]);
 
-  const pick = (f: File | undefined) => {
-    if (!f) return;
-    const invalid = validateUpload(f, DOCUMENT_MIME_TYPES);
-    if (invalid) { toast.error(invalid); return; }
-    setFile(f);
-    if (!title.trim()) setTitle(f.name.replace(/\.[^.]+$/, ''));
+  const updateRow = (key: string, patch: Partial<UploadRow>) =>
+    setRows(rs => rs.map(r => (r.key === key ? { ...r, ...patch } : r)));
+  const removeRow = (key: string) => setRows(rs => rs.filter(r => r.key !== key));
+
+  // Accept only allowed files; report the rest
+  const acceptFiles = (files: FileList | null): File[] => {
+    const ok: File[] = [];
+    for (const f of Array.from(files ?? [])) {
+      const invalid = validateUpload(f, DOCUMENT_MIME_TYPES);
+      if (invalid) toast.error(`${f.name}: ${invalid}`); else ok.push(f);
+    }
+    return ok;
   };
 
-  const handleUpload = async () => {
-    if (!file) { toast.error('Choose a file to upload'); return; }
+  // "Choose files": one new row per selected file (empty rows are replaced)
+  const addFiles = (files: FileList | null) => {
+    const ok = acceptFiles(files);
+    if (ok.length) setRows(rs => [...rs.filter(r => r.file || r.title.trim()), ...ok.map(f => newRow(f))]);
+  };
+
+  const pickForRow = (key: string, files: FileList | null) => {
+    const [f] = acceptFiles(files);
+    if (!f) return;
+    setRows(rs => rs.map(r => (r.key === key ? { ...r, file: f, title: r.title.trim() ? r.title : stripExt(f.name) } : r)));
+  };
+
+  const readyRows = rows.filter(r => r.file);
+
+  // Upload every row that has a file; failed rows stay so they can be retried
+  const handleUploadAll = async () => {
+    if (!readyRows.length) { toast.error('Choose at least one file to upload'); return; }
     setUploading(true);
-    const { error } = await uploadEmployeeDocument(employeeId, file, docType, title);
+    const failed = new Set<string>();
+    let done = 0;
+    for (const r of readyRows) {
+      const { error } = await uploadEmployeeDocument(employeeId, r.file as File, r.docType, r.title);
+      if (error) { failed.add(r.key); toast.error(`${(r.file as File).name}: ${error}`); } else done += 1;
+    }
     setUploading(false);
-    if (error) { toast.error(error); return; }
-    toast.success('Document uploaded');
-    setFile(null);
-    setTitle('');
+    setRows(rs => rs.filter(r => !r.file || failed.has(r.key)));
+    if (done) toast.success(`${done} document${done === 1 ? '' : 's'} uploaded`);
     load();
   };
 
@@ -100,38 +130,72 @@ const EmployeeDocuments: React.FC<Props> = ({ employeeId, canEdit, description }
       <CardContent className="space-y-4">
         {canEdit && (
           <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-3">
-              <div className="space-y-1.5">
-                <Label>Document type</Label>
-                <Select value={docType} onValueChange={v => setDocType(v as EmployeeDocumentType)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(DOCUMENT_TYPE_LABELS) as EmployeeDocumentType[]).map(t => (
-                      <SelectItem key={t} value={t}>{DOCUMENT_TYPE_LABELS[t]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-foreground">Upload documents</p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => multiInputRef.current?.click()} disabled={uploading}>
+                  <FileText size={13} /> Choose files
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={() => setRows(rs => [...rs, newRow()])} disabled={uploading}>
+                  <Plus size={13} /> Add document
+                </Button>
               </div>
-              <div className="space-y-1.5 min-w-0">
-                <Label htmlFor="doc-title">Title</Label>
-                <Input id="doc-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. BSc Degree Certificate" />
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading}>
-                <FileText size={14} /> {file ? 'Choose another file' : 'Choose file'}
-              </Button>
-              <span className="text-sm text-muted-foreground truncate max-w-full">
-                {file ? `${file.name} · ${formatSize(file.size)}` : 'PDF, Word or image, up to 10 MB'}
-              </span>
-              <Button type="button" size="sm" className="sm:ml-auto" onClick={handleUpload} disabled={!file || uploading}>
-                <Upload size={14} /> {uploading ? 'Uploading…' : 'Upload'}
-              </Button>
               <input
-                ref={inputRef} type="file" accept={DOCUMENT_MIME_TYPES.join(',')} className="hidden"
-                onChange={e => { pick(e.target.files?.[0]); e.target.value = ''; }}
+                ref={multiInputRef} type="file" multiple accept={DOCUMENT_MIME_TYPES.join(',')} className="hidden"
+                onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
               />
             </div>
+
+            {rows.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Use "Choose files" to pick several files at once, or "Add document" to add them one by one. PDF, Word or image, up to 10 MB each.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {rows.map(r => (
+                  <div key={r.key} className="grid grid-cols-1 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 items-end rounded-lg border border-border bg-card p-2.5">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Type</Label>
+                      <Select value={r.docType} onValueChange={v => updateRow(r.key, { docType: v as EmployeeDocumentType })} disabled={uploading}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(DOCUMENT_TYPE_LABELS) as EmployeeDocumentType[]).map(t => (
+                            <SelectItem key={t} value={t}>{DOCUMENT_TYPE_LABELS[t]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <Label className="text-xs" htmlFor={`title-${r.key}`}>Title</Label>
+                      <Input id={`title-${r.key}`} className="h-9" value={r.title} onChange={e => updateRow(r.key, { title: e.target.value })}
+                        placeholder="e.g. BSc Degree Certificate" disabled={uploading} />
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <Label className="text-xs">File</Label>
+                      <Button type="button" variant="outline" className="h-9 w-full justify-start font-normal" disabled={uploading}
+                        onClick={() => rowInputs.current[r.key]?.click()}>
+                        <FileText size={14} className="shrink-0" />
+                        <span className="truncate">{r.file ? `${r.file.name} · ${formatSize(r.file.size)}` : 'Choose file…'}</span>
+                      </Button>
+                      <input
+                        ref={el => { rowInputs.current[r.key] = el; }} type="file" accept={DOCUMENT_MIME_TYPES.join(',')} className="hidden"
+                        onChange={e => { pickForRow(r.key, e.target.files); e.target.value = ''; }}
+                      />
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:text-destructive" title="Remove row"
+                      onClick={() => removeRow(r.key)} disabled={uploading}>
+                      <X size={15} />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex justify-end pt-1">
+                  <Button type="button" size="sm" onClick={handleUploadAll} disabled={!readyRows.length || uploading}>
+                    <Upload size={14} />
+                    {uploading ? 'Uploading…' : `Upload ${readyRows.length} document${readyRows.length === 1 ? '' : 's'}`}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

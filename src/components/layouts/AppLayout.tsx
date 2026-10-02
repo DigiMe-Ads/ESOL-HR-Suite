@@ -10,10 +10,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   LayoutDashboard, Users, Wallet, FileText, CalendarCheck, CalendarDays, Settings2,
-  LogOut, Menu, UserCog, Receipt, KeyRound, ChevronsUpDown, CalendarClock, UserRound,
+  LogOut, Menu, UserCog, Receipt, KeyRound, ChevronsUpDown, CalendarClock, UserRound, Inbox,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrandMark, CREST_URL } from '@/components/common/BrandLogo';
+import NotificationBell from '@/components/common/NotificationBell';
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrator', hr_admin: 'HR User', manager: 'Manager', finance: 'Finance', staff: 'Staff',
@@ -37,6 +38,7 @@ const navGroups: Array<{ title: string; items: NavItem[] }> = [
   { title: 'Payroll', items: [
     { label: 'Add Salary', path: '/salary/new', icon: Wallet },
     { label: 'Salary Slips', path: '/salary-slips', icon: Receipt },
+    { label: 'Slip Requests', path: '/slip-requests', icon: Inbox },
     { label: 'Salary History', path: '/salary-history', icon: FileText },
   ] },
   { title: 'Time Off', items: [
@@ -225,6 +227,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80 hidden sm:block">ESOL Premier Campus</p>
             <p className="font-display text-[15px] font-semibold text-foreground truncate leading-tight">{title}</p>
           </div>
+          <NotificationBell />
           <div className="hidden sm:flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
             <CalendarClock size={14} className="text-primary" />
             {today}

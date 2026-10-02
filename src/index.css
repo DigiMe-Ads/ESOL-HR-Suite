@@ -182,6 +182,7 @@
 /* Print styles — clean A4 salary slip */
 @media print {
   .no-print { display: none !important; }
+  .print-only { display: block !important; }
   body { background: white !important; font-size: 12px !important; }
   .print-container {
     width: 100% !important;
