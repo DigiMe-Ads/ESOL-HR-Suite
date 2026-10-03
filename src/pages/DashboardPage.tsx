@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { leaveTypeLabel } from '@/types/types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import AppLayout from '@/components/layouts/AppLayout';
@@ -215,7 +216,7 @@ const DashboardPage: React.FC = () => {
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="h-9 w-9 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0"><CalendarDays size={16} /></span>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground capitalize">{l.leave_type} leave</p>
+                          <p className="text-sm font-medium text-foreground">{leaveTypeLabel(l.leave_type)}</p>
                           <p className="text-xs text-muted-foreground">{l.start_date} · {l.total_days} day(s)</p>
                         </div>
                       </div>

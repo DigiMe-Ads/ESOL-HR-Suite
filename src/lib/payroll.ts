@@ -56,6 +56,21 @@ export function leaveDaysInPeriod(
   }, 0);
 }
 
+/**
+ * Approved leave in the period, split into paid leave and unpaid ("No Pay") leave.
+ * Paid leave counts towards paid days; no-pay days are deducted (not paid).
+ */
+export function splitLeaveDays(
+  leaves: Array<Pick<LeaveRequest, 'start_date' | 'end_date'> & { leave_type?: string; status?: LeaveRequest['status'] }>,
+  start: Date,
+  end: Date,
+): { paid: number; noPay: number } {
+  return {
+    paid: leaveDaysInPeriod(leaves.filter(l => l.leave_type !== 'no_pay'), start, end),
+    noPay: leaveDaysInPeriod(leaves.filter(l => l.leave_type === 'no_pay'), start, end),
+  };
+}
+
 /** Salary is calculated on a fixed 30-day month, so a full month is 30 days even in a 28/29-day period */
 export const PAYROLL_BASIS_DAYS = 30;
 

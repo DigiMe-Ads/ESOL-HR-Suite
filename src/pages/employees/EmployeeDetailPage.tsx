@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { leaveTypeLabel } from '@/types/types';
 import { toast } from 'sonner';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppLayout from '@/components/layouts/AppLayout';
@@ -210,7 +211,7 @@ const EmployeeDetailPage: React.FC = () => {
                     <tr><td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No leave records.</td></tr>
                   ) : leaves.map(l => (
                     <tr key={l.id} className="border-b border-border hover:bg-muted/40">
-                      <td className="px-6 py-3 capitalize">{l.leave_type} Leave</td>
+                      <td className="px-6 py-3">{leaveTypeLabel(l.leave_type)}</td>
                       <td className="px-6 py-3 text-muted-foreground">{l.start_date} to {l.end_date}</td>
                       <td className="px-6 py-3">{l.total_days}</td>
                       <td className="px-6 py-3">

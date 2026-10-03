@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   LayoutDashboard, Users, Wallet, FileText, CalendarCheck, CalendarDays, Settings2,
-  LogOut, Menu, UserCog, Receipt, KeyRound, ChevronsUpDown, CalendarClock, UserRound, Inbox,
+  LogOut, Menu, UserCog, Receipt, KeyRound, ChevronsUpDown, CalendarClock, UserRound, Inbox, History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrandMark, CREST_URL } from '@/components/common/BrandLogo';
@@ -48,6 +48,7 @@ const navGroups: Array<{ title: string; items: NavItem[] }> = [
   ] },
   { title: 'Administration', items: [
     { label: 'User Management', path: '/users', icon: UserCog },
+    { label: 'Activity Log', path: '/activity-log', icon: History },
   ] },
 ];
 

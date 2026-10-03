@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/db/supabase';
 import type { Profile, Permission } from '@/types/types';
-import { getProfile } from '@/db/api';
+import { fetchProfileResult } from '@/db/api';
 
 interface AuthContextValue {
   session: Session | null;
@@ -42,8 +42,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [passwordRecovery, setPasswordRecovery] = useState(() => window.location.hash.includes('type=recovery'));
 
   const fetchProfile = useCallback(async (uid: string) => {
-    const p = await getProfile(uid);
-    setProfile(p);
+    // Retry briefly on network/token hiccups so a failed request never looks like "no access"
+    let res = await fetchProfileResult(uid);
+    for (let attempt = 1; res.failed && attempt <= 3; attempt++) {
+      await new Promise(r => setTimeout(r, 400 * attempt));
+      res = await fetchProfileResult(uid);
+    }
+    if (res.failed) {
+      // Keep the profile we already have for this user rather than wiping it
+      setProfileFor(prev => prev ?? uid);
+      return;
+    }
+    setProfile(res.profile);
     setProfileFor(uid);
   }, []);
 

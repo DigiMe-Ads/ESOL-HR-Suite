@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { leaveTypeLabel } from '@/types/types';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -19,7 +20,7 @@ const statusColor: Record<string, string> = {
 };
 
 const BALANCE_ROWS: { type: LeaveType; label: string; note: string }[] = [
-  { type: 'annual', label: 'Annual Leave', note: 'Year 1: none · Year 2: pro-rated · Year 3+: 14 days (min. 7 consecutive)' },
+  { type: 'annual', label: 'Annual Leave', note: 'Year 1: none · Year 2: pro-rated · Year 3+: 14 days (one block of 7+ consecutive days per year)' },
   { type: 'casual', label: 'Casual Leave', note: '7 days (Year 1: 1 day per 2 completed months) · lapses at year end' },
   { type: 'sick', label: 'Sick Leave', note: 'Shares the casual leave balance above — not an extra allocation' },
   { type: 'maternity', label: 'Maternity Leave', note: '84 days per confinement' },
@@ -149,7 +150,7 @@ const MyLeavesPage: React.FC = () => {
                     <tr><td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">No leave requests found.</td></tr>
                   ) : filtered.map(l => (
                     <tr key={l.id} className="border-b border-border hover:bg-muted/40 transition-colors">
-                      <td className="px-6 py-3 capitalize">{l.leave_type} Leave</td>
+                      <td className="px-6 py-3">{leaveTypeLabel(l.leave_type)}</td>
                       <td className="px-6 py-3 text-muted-foreground">{l.start_date}</td>
                       <td className="px-6 py-3 text-muted-foreground">{l.end_date}</td>
                       <td className="px-6 py-3 text-right">{l.total_days}</td>

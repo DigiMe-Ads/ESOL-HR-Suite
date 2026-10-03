@@ -10,19 +10,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { createLeaveRequest, getEmployeeByProfileId, getLeaveRequests, getLeaveTypeConfigs, getLeaveGrants } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import type { LeaveType, Employee, LeaveRequest } from '@/types/types';
-import { validateLeaveRequest, remainingDays, entitlementFor, countLeaveDays, policyFromConfig, availableLeaveTypes, DEFAULT_POLICY } from '@/lib/leavePolicy';
+import { validateLeaveRequest, remainingDays, entitlementFor, countLeaveDays, policyFromConfig, availableLeaveTypes, paidLeaveCovers, DEFAULT_POLICY } from '@/lib/leavePolicy';
 import type { LeavePolicy } from '@/lib/leavePolicy';
 import { toast } from 'sonner';
 import { ArrowLeft, Info } from 'lucide-react';
 
 // Ordered per statutory policy display
 const LEAVE_TYPE_ORDER: { value: LeaveType; label: string; note: string }[] = [
-  { value: 'annual', label: 'Annual Leave', note: '14 days from Year 3 · must be taken as at least 7 consecutive days' },
+  { value: 'annual', label: 'Annual Leave', note: 'Year 1: none · Year 2: pro-rated · Year 3+: 14 days · include one block of at least 7 consecutive days per year' },
   { value: 'casual', label: 'Casual Leave', note: '7 days (Year 1: 1 day per 2 completed months) · lapses at year end' },
   { value: 'sick', label: 'Sick Leave', note: 'Shares the casual leave balance (no separate allocation)' },
   { value: 'maternity', label: 'Maternity Leave', note: '84 days (14 before + 70 after delivery)' },
   { value: 'paternity', label: 'Paternity Leave', note: '3 days under company policy' },
   { value: 'other', label: 'Other Leave', note: 'Special leave at HR discretion (limited days per year)' },
+  { value: 'no_pay', label: 'No Pay Leave', note: 'Unpaid leave — only when your paid leave is used up. These days are deducted from your salary.' },
 ];
 
 const ApplyLeavePage: React.FC = () => {
@@ -52,15 +53,22 @@ const ApplyLeavePage: React.FC = () => {
 
   const totalDays = countLeaveDays(form.start_date, form.end_date);
   // Maternity/paternity only appear for employees HR has enabled them for
+  // No Pay Leave is offered only when annual/casual leave can't cover these dates (or nothing paid is left)
+  const noPayEligible = useMemo(() => !!employee && !paidLeaveCovers({
+    totalDays, commencement: employee.employment_commencement, leaves,
+    startDate: form.start_date || undefined, endDate: form.end_date || undefined, policy,
+  }), [employee, totalDays, leaves, form.start_date, form.end_date, policy]);
+
   const leaveTypes = useMemo(() => {
     const allowed = availableLeaveTypes(LEAVE_TYPE_ORDER.map(t => t.value), policy, grantedTypes);
-    return LEAVE_TYPE_ORDER.filter(t => allowed.includes(t.value));
-  }, [policy, grantedTypes]);
+    return LEAVE_TYPE_ORDER.filter(t => allowed.includes(t.value)
+      && (t.value !== 'no_pay' || noPayEligible || form.leave_type === 'no_pay'));
+  }, [policy, grantedTypes, noPayEligible, form.leave_type]);
 
   const balances = useMemo(() => {
     if (!employee) return null;
     const year = new Date().getFullYear();
-    return leaveTypes.map(t => ({
+    return leaveTypes.filter(t => t.value !== 'no_pay').map(t => ({
       ...t,
       entitlement: entitlementFor(t.value, employee.employment_commencement, new Date(), policy),
       remaining: remainingDays(t.value, employee.employment_commencement, leaves, year, policy),
@@ -181,6 +189,14 @@ const ApplyLeavePage: React.FC = () => {
                   {validation && !validation.ok && (
                     <span className="text-xs text-destructive">{validation.error}</span>
                   )}
+                </div>
+              )}
+              {validation && !validation.ok && noPayEligible && form.leave_type !== 'no_pay' && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/30 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  <span>You don't have enough paid leave for these dates. You can apply for No Pay Leave instead (deducted from salary).</span>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setForm(f => ({ ...f, leave_type: 'no_pay' }))}>
+                    Apply as No Pay Leave
+                  </Button>
                 </div>
               )}
               <div className="space-y-1.5">

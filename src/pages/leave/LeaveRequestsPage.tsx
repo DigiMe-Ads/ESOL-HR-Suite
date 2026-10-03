@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { leaveTypeLabel } from '@/types/types';
 import AppLayout from '@/components/layouts/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -118,7 +119,7 @@ const LeaveRequestsPage: React.FC = () => {
                           <p className="font-medium text-foreground">{emp?.full_name ?? '—'}</p>
                           <p className="text-xs text-muted-foreground">{emp?.employee_id}</p>
                         </td>
-                        <td className="px-6 py-3 capitalize">{l.leave_type} Leave</td>
+                        <td className="px-6 py-3">{leaveTypeLabel(l.leave_type)}</td>
                         <td className="px-6 py-3 text-muted-foreground">{l.start_date} → {l.end_date}</td>
                         <td className="px-6 py-3 text-right">{l.total_days}</td>
                         <td className="px-6 py-3 text-muted-foreground max-w-[140px] truncate">{l.reason ?? '—'}</td>
@@ -167,7 +168,7 @@ const LeaveRequestsPage: React.FC = () => {
             <div className="space-y-4">
               <div className="bg-muted rounded-lg p-4 text-sm space-y-1">
                 <p><span className="font-medium">Employee:</span> {empMap[reviewDialog.leave.employee_id]?.full_name}</p>
-                <p><span className="font-medium">Type:</span> {reviewDialog.leave.leave_type} Leave</p>
+                <p><span className="font-medium">Type:</span> {leaveTypeLabel(reviewDialog.leave.leave_type)}</p>
                 <p><span className="font-medium">Dates:</span> {reviewDialog.leave.start_date} to {reviewDialog.leave.end_date} ({reviewDialog.leave.total_days} days)</p>
                 {reviewDialog.leave.reason && <p><span className="font-medium">Reason:</span> {reviewDialog.leave.reason}</p>}
               </div>

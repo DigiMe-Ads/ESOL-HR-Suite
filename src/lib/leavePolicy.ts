@@ -17,6 +17,18 @@ export function availableLeaveTypes(all: LeaveType[], policy: LeavePolicy, grant
   return all.filter(t => !policy.inactive.includes(t) && (!GRANTED_LEAVE_TYPES.includes(t) || grantedTypes.includes(t)));
 }
 
+/**
+ * True when annual or casual leave could cover this request (same rules as applying for them).
+ * Without dates, it checks whether any paid balance is left at all.
+ */
+export function paidLeaveCovers(params: {
+  totalDays: number; commencement: string; leaves: LeaveRequest[]; startDate?: string; endDate?: string; policy?: LeavePolicy;
+}): boolean {
+  const days = params.totalDays > 0 ? params.totalDays : 1;
+  return (['casual', 'annual'] as LeaveType[]).some(t =>
+    !(params.policy ?? DEFAULT_POLICY).inactive.includes(t) && validateLeaveRequest({ ...params, type: t, totalDays: days }).ok);
+}
+
 /** "Year 1", "Year 2"… of service, as used by the annual/casual rules */
 export function serviceYearLabel(commencement: string, asOf: Date = new Date()): string {
   return `Year ${completedYears(commencement, asOf) + 1}`;
@@ -114,6 +126,7 @@ export function entitlementFor(type: LeaveType, commencement: string, asOf: Date
     case 'maternity': return policy.maternity;
     case 'paternity': return policy.paternity;
     case 'other': return policy.other;
+    case 'no_pay': return 0; // unpaid — no balance
     default: return 0;
   }
 }
@@ -204,6 +217,14 @@ export function validateLeaveRequest(params: {
 
   if (type === 'paternity' && totalDays > policy.paternity) {
     return { ok: false, error: `Paternity leave is limited to ${policy.paternity} days under company policy.` };
+  }
+
+  // No pay leave is only for when paid leave can't cover the request
+  if (type === 'no_pay') {
+    if (paidLeaveCovers({ ...params, policy })) {
+      return { ok: false, error: 'You still have enough paid leave (annual or casual) for these dates. No pay leave is only available when your paid leave is used up.' };
+    }
+    return { ok: true };
   }
 
   if (type === 'other') {

@@ -29,7 +29,19 @@ export const ROLE_PERMISSION_PRESETS: Record<UserRole, Permission[]> = {
   staff: ['dashboard', 'leaves', 'salary_slips'],
 };
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
-export type LeaveType = 'annual' | 'sick' | 'casual' | 'maternity' | 'paternity' | 'other';
+export type LeaveType = 'annual' | 'sick' | 'casual' | 'maternity' | 'paternity' | 'other' | 'no_pay';
+
+export const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
+  annual: 'Annual Leave',
+  casual: 'Casual Leave',
+  sick: 'Sick Leave',
+  maternity: 'Maternity Leave',
+  paternity: 'Paternity Leave',
+  other: 'Other Leave',
+  no_pay: 'No Pay Leave',
+};
+
+export const leaveTypeLabel = (t: string) => LEAVE_TYPE_LABELS[t as LeaveType] ?? `${t} leave`;
 export type EmploymentStatus = 'active' | 'resigned';
 
 export interface Profile {
@@ -221,4 +233,17 @@ export interface EmployeeLeaveGrant {
   leave_type: GrantedLeaveType;
   granted_by: string | null;
   created_at: string;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  occurred_at: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  actor_role: string | null;
+  table_name: string;
+  record_id: string | null;
+  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
 }

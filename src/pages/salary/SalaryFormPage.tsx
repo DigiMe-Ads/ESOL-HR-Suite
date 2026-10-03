@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getEmployeeDirectory, createSalaryRecord, updateSalaryRecord, getSalaryRecord, getApprovedLeavesForPayroll } from '@/db/api';
+import { getEmployeeDirectory, createSalaryRecord, updateSalaryRecord, getSalaryRecord, getApprovedLeavesForPayroll, getSalaryRecords } from '@/db/api';
 import type { EmployeeDirectoryEntry } from '@/db/api';
 import { calculateSalary, formatLKR, STAMP_DUTY_AMOUNT } from '@/lib/salaryCalc';
 import { useAuth } from '@/contexts/AuthContext';
 import type { LeaveRequest, SalaryRecord } from '@/types/types';
-import { MONTHS, PAYROLL_BASIS_DAYS, buildPayrollPeriod, leaveDaysInPeriod, validatePayrollDays } from '@/lib/payroll';
+import { MONTHS, PAYROLL_BASIS_DAYS, buildPayrollPeriod, splitLeaveDays, validatePayrollDays } from '@/lib/payroll';
 import { toast } from 'sonner';
 import { ArrowLeft, Calculator, Wand2, Plus, Trash2 } from 'lucide-react';
 
@@ -63,7 +63,10 @@ const SalaryFormPage: React.FC = () => {
   const { profile } = useAuth();
   const [form, setForm] = useState<FormState>({ ...EMPTY, employee_id: searchParams.get('employeeId') ?? '' });
   const [employees, setEmployees] = useState<EmployeeDirectoryEntry[]>([]);
-  const [leaves, setLeaves] = useState<Array<Pick<LeaveRequest, 'start_date' | 'end_date'>>>([]);
+  const [leaves, setLeaves] = useState<Array<Pick<LeaveRequest, 'start_date' | 'end_date' | 'leave_type'>>>([]);
+  const [noPayDays, setNoPayDays] = useState(0);
+  // "YYYY-M" keys of months that already have a salary record for the selected employee
+  const [takenMonths, setTakenMonths] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [daysTouched, setDaysTouched] = useState(false);
@@ -114,14 +117,36 @@ const SalaryFormPage: React.FC = () => {
     setForm(f => f.payroll_period === period.label ? f : { ...f, payroll_period: period.label });
     if (isEdit) return;
     if (!daysTouched && form.employee_id) {
-      const leaveDays = leaveDaysInPeriod(leaves, period.start, period.end);
-      const working = Math.max(30 - leaveDays, 0);
+      // Paid leave counts as paid days; No Pay leave days are not paid
+      const { paid: leaveDays, noPay } = splitLeaveDays(leaves, period.start, period.end);
+      setNoPayDays(noPay);
+      const working = Math.max(30 - leaveDays - noPay, 0);
       setForm(f => (
         f.leave_entitlement_days === String(leaveDays) && f.actual_working_days === String(working)
           ? f : { ...f, leave_entitlement_days: String(leaveDays), actual_working_days: String(working) }
       ));
     }
   }, [period, form.employee_id, leaves, loading, isEdit, daysTouched]);
+
+  // Months already paid for this employee can't be picked again (the record being edited stays selectable)
+  useEffect(() => {
+    if (!form.employee_id) { setTakenMonths(new Set()); return; }
+    let cancelled = false;
+    getSalaryRecords(form.employee_id).then(recs => {
+      if (cancelled) return;
+      setTakenMonths(new Set(recs.filter(r => r.id !== id).map(r => `${r.payroll_year}-${r.payroll_month_number}`)));
+    });
+    return () => { cancelled = true; };
+  }, [form.employee_id, id]);
+
+  const isMonthTaken = (monthName: string, year: string) => takenMonths.has(`${year}-${MONTHS.indexOf(monthName) + 1}`);
+
+  // If the employee/year changes onto an already-paid month, clear the month selection
+  useEffect(() => {
+    if (form.payroll_month_name && isMonthTaken(form.payroll_month_name, form.payroll_year)) {
+      setForm(f => ({ ...f, payroll_month_name: '', payroll_period: '' }));
+    }
+  }, [takenMonths, form.payroll_year]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm(f => ({ ...f, [k]: v }));
 
@@ -233,7 +258,14 @@ const SalaryFormPage: React.FC = () => {
                       <Select value={form.payroll_month_name} onValueChange={v => set('payroll_month_name', v)}>
                         <SelectTrigger><SelectValue placeholder="Month" /></SelectTrigger>
                         <SelectContent>
-                          {MONTHS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                          {MONTHS.map(m => {
+                            const taken = isMonthTaken(m, form.payroll_year);
+                            return (
+                              <SelectItem key={m} value={m} disabled={taken}>
+                                {m}{taken ? ' — already added' : ''}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                     </div>
@@ -319,6 +351,7 @@ const SalaryFormPage: React.FC = () => {
                   {period && (
                     <p className={`text-xs ${validatePayrollDays(parseFloat(form.actual_working_days) || 0, parseFloat(form.leave_entitlement_days) || 0, period.days) ? 'text-destructive' : 'text-muted-foreground'}`}>
                       Paid days: {(parseFloat(form.actual_working_days) || 0) + (parseFloat(form.leave_entitlement_days) || 0)} (max {Math.max(PAYROLL_BASIS_DAYS, period.days)} for this period)
+                      {noPayDays > 0 && !isEdit && <span className="block text-amber-700 dark:text-amber-300">Includes {noPayDays} day{noPayDays === 1 ? '' : 's'} of approved No Pay Leave — not paid.</span>}
                     </p>
                   )}
                   {daysTouched && !isEdit && (

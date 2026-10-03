@@ -17,6 +17,7 @@ import UserManagementPage from './pages/UserManagementPage';
 import ForbiddenPage from './pages/ForbiddenPage';
 import MyProfilePage from './pages/MyProfilePage';
 import SlipRequestsPage from './pages/salary/SlipRequestsPage';
+import ActivityLogPage from './pages/ActivityLogPage';
 
 import type { Permission, Profile } from '@/types/types';
 
@@ -79,5 +80,6 @@ export const routes: RouteConfig[] = [
   { name: 'Leave Config', path: '/leave-config', element: <LeaveConfigPage />, roles: ['admin', 'hr_admin'] },
 
   // User management
+  { name: 'Activity Log', path: '/activity-log', element: <ActivityLogPage />, roles: ['admin'] },
   { name: 'Users', path: '/users', element: <UserManagementPage />, permission: 'user_management' },
 ];

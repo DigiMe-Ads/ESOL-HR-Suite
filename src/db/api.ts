@@ -1,7 +1,7 @@
 import { supabase } from '@/db/supabase';
 import type {
   Employee, SalaryRecord, LeaveRequest, LeaveTypeConfig, Profile, UserRole, LeaveType, Permission, EmployeeDocument, EmployeeDocumentType,
-  SalarySlipRequest, SlipRequestStatus, AppNotification, EmployeeLeaveGrant, GrantedLeaveType,
+  SalarySlipRequest, SlipRequestStatus, AppNotification, EmployeeLeaveGrant, GrantedLeaveType, AuditLogEntry,
 } from '@/types/types';
 import { round2 } from '@/lib/salaryCalc';
 
@@ -35,6 +35,12 @@ export async function getProfile(userId: string): Promise<Profile | null> {
     .eq('id', userId)
     .maybeSingle();
   return data;
+}
+
+/** Like getProfile, but distinguishes "no profile" from a failed request (so callers can retry) */
+export async function fetchProfileResult(userId: string): Promise<{ profile: Profile | null; failed: boolean }> {
+  const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+  return { profile: data, failed: !!error };
 }
 
 export async function getAllProfiles(): Promise<Profile[]> {
@@ -565,6 +571,19 @@ export async function setLeaveGrant(employeeId: string, leaveType: GrantedLeaveT
     ? await supabase.from('employee_leave_grants').upsert({ employee_id: employeeId, leave_type: leaveType }, { onConflict: 'employee_id,leave_type', ignoreDuplicates: true })
     : await supabase.from('employee_leave_grants').delete().eq('employee_id', employeeId).eq('leave_type', leaveType);
   return { error: friendlyDbError(error) };
+}
+
+// =================== ACTIVITY LOG (admin only, written by database triggers) ===================
+export async function getAuditLog(filters: {
+  table?: string; action?: string; from?: string; to?: string; limit?: number;
+} = {}): Promise<AuditLogEntry[]> {
+  let query = supabase.from('audit_log').select('*').order('occurred_at', { ascending: false }).limit(filters.limit ?? 300);
+  if (filters.table) query = query.eq('table_name', filters.table);
+  if (filters.action) query = query.eq('action', filters.action);
+  if (filters.from) query = query.gte('occurred_at', `${filters.from}T00:00:00`);
+  if (filters.to) query = query.lte('occurred_at', `${filters.to}T23:59:59.999`);
+  const { data } = await query;
+  return Array.isArray(data) ? data : [];
 }
 
 // =================== USER MANAGEMENT ===================
